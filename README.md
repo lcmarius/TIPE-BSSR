@@ -1,2 +1,2 @@
-# TIPE-
-Planifier la tournée d’un camion pour minimiser le temps de rupture des stations vélos dans le réseau à Nantes.
+# TIPE BSSR (Bike-sharing system routing)
+Plan a truck route to minimize the time spent on bicycle stations in the Nantes network.
