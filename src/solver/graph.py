@@ -72,10 +72,20 @@ class SolvingStationGraph:
     def is_connex(self):
         return len(self.list_edges()) == self.size() - 1
 
-    def get_neighbor(self, station_id: int) -> int | None:
+    def get_successor(self, station_id: int) -> int | None:
         if not self.has_station(station_id):
             raise Exception(f"Station {station_id} does not exist")
         return self.stations[station_id]
+
+    def get_predecessor(self, station_id: int) -> int | None:
+        if not self.has_station(station_id):
+            raise Exception(f"Station {station_id} does not exist")
+
+        for sid in self.stations:
+            if self.stations[sid] == station_id:
+                return sid
+
+        return None
 
     def get_nearest_neighbor(self, station_id: int, condition) -> TargetedStation | None:
         """
@@ -118,7 +128,7 @@ def test():
     g.add_edge(1, 2)
     g.add_edge(2, 3)
     assert len(g.list_edges()) == 2
-    assert g.get_neighbor(1) == 2
+    assert g.get_successor(1) == 2
     assert g.has_edge(1, 2)
     assert not g.has_edge(2, 3)
 
