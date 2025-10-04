@@ -149,5 +149,4 @@ def test_graph():
 
 
 test_graph()
-
 ## Playground pour visualiser: https://magjac.com/graphviz-visual-editor/

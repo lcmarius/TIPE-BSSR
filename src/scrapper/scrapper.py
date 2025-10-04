@@ -1,32 +1,7 @@
 import requests
-from datetime import datetime
 from typing import Dict, List, Optional
 
-class Station:
-    """Classe représentant une station"""
-
-    def __init__(self, station_id: int, nom_fr: str, capacite_max: int,
-                 adresse: str, longitude: float, latitude: float):
-        self.id = station_id
-        self.nom_fr = nom_fr
-        self.capacite_max = capacite_max
-        self.adresse = adresse
-        self.longitude = longitude
-        self.latitude = latitude
-
-    def __repr__(self):
-        return f"Station(id={self.id}, nom='{self.nom_fr}', capacite={self.capacite_max})"
-
-class Velo:
-    """Classe représentant un vélo Bicloo"""
-
-    def __init__(self, velo_id: str, number: int, created_at: str):
-        self.id = velo_id
-        self.number = number
-        self.created_at = created_at
-
-    def __repr__(self):
-        return f"Velo(id='{self.id}', number={self.number}, created_at='{self.created_at}')"
+from src.objects.station import Station, Bike
 
 class VeloAPI:
     """Classe pour gérer les appels à l'API Bicloo"""
@@ -117,24 +92,24 @@ def register_stations() -> Dict[int, Station]:
 
         station = Station(
             station_id=int(station_data['station_id']),
-            nom_fr=nom_fr,
-            capacite_max=station_data['capacity'],
-            adresse=station_data.get('address', ''),
-            longitude=station_data['lon'],
-            latitude=station_data['lat']
+            name=nom_fr,
+            capacity=station_data['capacity'],
+            address=station_data.get('address', ''),
+            geo_long=station_data['lon'],
+            geo_lat=station_data['lat']
         )
 
         stations_dict[station.id] = station
 
     return stations_dict
 
-def register_bikes() -> Dict[str, Velo]:
+def register_bikes() -> Dict[str, Bike]:
     api = VeloAPI()
     bikes_data = api.get_bikes_info()
     bikes_dict = {}
 
     for bike_data in bikes_data:
-        velo = Velo(
+        velo = Bike(
             velo_id=bike_data['id'],
             number=bike_data['number'],
             created_at=bike_data['createdAt']
