@@ -1,5 +1,21 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from src.objects.station import TargetedStation, Station
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import networkx as nx
+import copy
+
+
+class GraphSnapshot:
+    """Snapshot of a graph state for animation"""
+    def __init__(self, stations: Dict[int, int|None], station_map: Dict[int, TargetedStation],
+                 description: str = "", highlighted_stations: List[int] = None,
+                 highlighted_edge: Tuple[int, int] = None):
+        self.stations = copy.deepcopy(stations)
+        self.station_map = copy.deepcopy(station_map)
+        self.description = description
+        self.highlighted_stations = highlighted_stations or []
+        self.highlighted_edge = highlighted_edge
 
 
 class SolvingStationGraph:
@@ -8,6 +24,7 @@ class SolvingStationGraph:
     def __init__(self, depot_station: Station):
         self.stations: Dict[int, int|None] = {}  # station_id -> [neighbor_ids]
         self.station_map: Dict[int, TargetedStation] = {}  # station_id -> Station object
+        self.snapshots: List[GraphSnapshot] = []  # For animation
 
         assert depot_station.id == 0, "Depot must have id 0"
         self.add_station(TargetedStation.from_station(depot_station, 0, 0))
@@ -49,7 +66,7 @@ class SolvingStationGraph:
         return len(self.stations)
 
     def has_edge(self, station_id1: int, station_id2: int) -> bool:
-        return self.has_station(station_id1) and station_id2 in self.stations[station_id1]
+        return self.has_station(station_id1) and station_id2 == self.stations[station_id1]
 
     def add_edge(self, station_id1: int, station_id2: int) -> None:
         if not self.has_station(station_id1):
@@ -110,8 +127,99 @@ class SolvingStationGraph:
 
         return nearest_station
 
+    def take_snapshot(self, description: str = "", highlighted_stations: List[int] = None,
+                     highlighted_edge: Tuple[int, int] = None):
+        """
+        Capture l'état actuel du graphe pour l'animation
+        :param description: Information textuelle sur l'état actuel
+        :param highlighted_stations: Liste des stations à mettre en évidence
+        :param highlighted_edge: Arête à mettre en évidence (station_id1, station_id2)
+        :return:
+        """
+        snapshot = GraphSnapshot(self.stations, self.station_map, description,
+                                highlighted_stations, highlighted_edge)
+        self.snapshots.append(snapshot)
+
+    def clear_snapshots(self) -> None:
+        """Efface toutes les captures"""
+        self.snapshots = []
+
+
+def animate_graph(graph: SolvingStationGraph, output_file: str = "algorithm_animation", interval: int = 1000, save_gif: bool = True):
+    """
+    Créer une animation du graphe
+    :param graph: Le graphe à animer
+    :param output_file: Nom du fichier de sortie (sans extension)
+    :param interval: Intervalle entre les frames en ms
+    :param save_gif: Si True, sauvegarde l'animation en GIF, sinon l'affiche
+    :return:
+    """
+
+    if not graph.snapshots:
+        raise Exception("No snapshots recorded. Use take_snapshot() during your algorithm.")
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    pos = {}
+    for station in graph.list_stations():
+        pos[station.id] = (station.long, station.lat)
+
+    def draw_frame(frame_num):
+        ax.clear()
+        snapshot = graph.snapshots[frame_num]
+
+        G = nx.DiGraph()
+        for sid in snapshot.station_map:
+            G.add_node(sid)
+        for sid, neighbor in snapshot.stations.items():
+            if neighbor is not None:
+                G.add_edge(sid, neighbor)
+
+        node_colors = []
+        for node in G.nodes():
+            if node in snapshot.highlighted_stations:
+                node_colors.append('orange')
+            elif node == 0:
+                node_colors.append('lightblue')
+            else:
+                node_colors.append('lightgreen')
+
+        nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=700,
+                              ax=ax, node_shape='s')
+
+        edge_colors = []
+        for edge in G.edges():
+            if snapshot.highlighted_edge == edge:
+                edge_colors.append('red')
+            else:
+                edge_colors.append('black')
+
+        nx.draw_networkx_edges(G, pos, edge_color=edge_colors, arrows=True,
+                              arrowsize=20, width=2, ax=ax)
+
+        labels = {}
+        for sid, st in snapshot.station_map.items():
+            labels[sid] = f"{sid}\n{st.bike_count}/{st.bike_target}"
+        nx.draw_networkx_labels(G, pos, labels, font_size=8, ax=ax)
+
+        ax.set_title(f"Step {frame_num + 1}/{len(graph.snapshots)}: {snapshot.description}",
+                    fontsize=14, fontweight='bold')
+        ax.axis('off')
+
+    anim = animation.FuncAnimation(fig, draw_frame, frames=len(graph.snapshots),
+                                  interval=interval, repeat=True)
+
+    if save_gif:
+        anim.save(output_file + ".gif", writer='pillow', fps=1000//interval)
+        print(f"Animation saved to {output_file}.gif")
+    else:
+        plt.show()
+
+    plt.close()
+
+
 def test():
-    s0 = TargetedStation(0, "Station init", 1, "Addr 1", -1.5, 47.2)
+    s0 = Station(0, "Station init", 1, "Addr 1", -1.5, 47.2)
     g = SolvingStationGraph(s0)
 
     s1 = TargetedStation(1, "Station 1", 10, "Addr 1", -1.5, 47.2, 5, 8)
@@ -130,7 +238,8 @@ def test():
     assert len(g.list_edges()) == 2
     assert g.get_successor(1) == 2
     assert g.has_edge(1, 2)
-    assert not g.has_edge(2, 3)
+    assert g.has_edge(2, 3)
+    assert not g.has_edge(1, 3)
 
     g.remove_edge(1, 2)
     assert len(g.list_edges()) == 1
@@ -140,3 +249,6 @@ def test():
     assert len(g.list_edges()) == 0
 
     print("All tests passed!")
+
+if __name__ == "__main__":
+    test()
