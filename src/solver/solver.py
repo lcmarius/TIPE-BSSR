@@ -30,12 +30,9 @@ def is_graph_solvable(graph: SolvingStationGraph, q: int) -> bool:
     for station in graph.list_stations():
         if station.id != 0:
             gap: int = station.bike_gap()
-            if abs(gap) < q//2:
+            if abs(gap) > q//2:
                 return False
             total += station.bike_gap()
 
     return total == 0
-
-
-
 

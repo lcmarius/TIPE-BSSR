@@ -1,8 +1,10 @@
 import math
-
-from src.objects.station import TargetedStation
-from src.solver.graph import SolvingStationGraph
 import random
+
+from src.objects.station import TargetedStation, Station
+from src.solver.graph import SolvingStationGraph
+from src.solver.solver import is_graph_solvable
+
 
 def create_path(graph: SolvingStationGraph, q: int, alpha: int):
     """
@@ -29,9 +31,13 @@ def create_path(graph: SolvingStationGraph, q: int, alpha: int):
     vehicle_load += cursor_station.bike_gap()
 
     for i in range(1, graph.size() - 1):
-        nearest_station: TargetedStation | None = graph.get_nearest_successor(
+        nearest_station: TargetedStation | None = graph.get_nearest_neighbor(
             cursor_station.id,
-            lambda s: alpha <= vehicle_load + s.bike_gape() <= q + alpha
+            lambda s:
+                s.id != 0 and
+                s.id != cursor_station.id and
+                graph.get_predecessor(s.id) is None and
+                alpha <= vehicle_load + s.bike_gap() <= q + alpha
         )
 
         if nearest_station is None:
@@ -40,6 +46,11 @@ def create_path(graph: SolvingStationGraph, q: int, alpha: int):
         graph.add_edge(cursor_station.id, nearest_station.id)
         vehicle_load += nearest_station.bike_gap()
         cursor_station = nearest_station
+
+    graph.add_edge(cursor_station.id, 0)
+
+    #Print paths
+    print(graph.list_edges())
 
 
 def loop(graph: SolvingStationGraph, vehicle_capacity: int) -> bool:
@@ -54,7 +65,7 @@ def loop(graph: SolvingStationGraph, vehicle_capacity: int) -> bool:
     max_station_load: int = vehicle_load
     max_station_id: int = 0
 
-    cursor_station: TargetedStation = graph.get_station(graph.get_successor(0));
+    cursor_station: TargetedStation = graph.get_station(graph.get_successor(0))
     while cursor_station is not None:
         vehicle_load += cursor_station.bike_gap()
         if abs(vehicle_load) > abs(max_station_load):
@@ -68,7 +79,7 @@ def loop(graph: SolvingStationGraph, vehicle_capacity: int) -> bool:
     max_station_predecessor_id: int = graph.get_predecessor(max_station_id)
     max_station_successor_id: int = graph.get_successor(max_station_id)
 
-    target_station_id: int = choice(graph, max_station_id, max_station_load)
+    target_station_id: int = choice(graph, max_station_id, max_station_load, vehicle_capacity)
     target_station_predecessor_id: int = graph.get_predecessor(target_station_id)
     target_station_successor_id: int = graph.get_successor(target_station_id)
 
@@ -123,7 +134,97 @@ def method1(graph: SolvingStationGraph, vehicle_capacity: int, alpha: int):
     create_path(graph, vehicle_capacity, alpha)
     N=0
     while not loop(graph, vehicle_capacity) and N < 1000:
+        loop(graph, vehicle_capacity)
         N+=1
 
 
+def test_method1():
+    """
+    Test de la méthode 1 avec un graphe simple
+    """
+    print("=== Test de la méthode 1 ===\n")
 
+    # Paramètres
+    vehicle_capacity = 20  # Capacité du camion
+    alpha = 0  # Paramètre d'optimisation
+
+    # Création du dépôt (station 0)
+    depot = Station(0, "Dépôt", 50, "1 Rue du Dépôt", -1.5536, 47.2173)
+
+    # Création des stations avec bike_gap qui respectent les conditions:
+    # - Somme des bike_gap = 0
+    # - |bike_gap| < vehicle_capacity/2 = 10
+
+    # Station 1: bike_gap = +6 (loading - trop de vélos, besoin de retirer 6)
+    s1 = TargetedStation(1, "Station A", 20, "10 Rue A", -1.5500, 47.2200,
+                         bike_count=16, bike_target=10)  # gap = +6
+
+    # Station 2: bike_gap = +2 (loading - trop de vélos, besoin de retirer 2)
+    s2 = TargetedStation(2, "Station B", 15, "20 Rue B", -1.5600, 47.2100,
+                         bike_count=12, bike_target=10)  # gap = +2
+
+    # Station 3: bike_gap = -4 (unloading - pas assez de vélos, besoin d'ajouter 4)
+    s3 = TargetedStation(3, "Station C", 18, "30 Rue C", -1.5400, 47.2250,
+                         bike_count=5, bike_target=9)  # gap = -4
+
+    # Station 4: bike_gap = -4 (unloading - pas assez de vélos, besoin d'ajouter 4)
+    s4 = TargetedStation(4, "Station D", 16, "40 Rue D", -1.5700, 47.2050,
+                         bike_count=3, bike_target=7)  # gap = -4
+
+    # Vérification: somme = 6 + 2 - 4 - 4 = 0 ✓
+
+    # Création du graphe
+    graph = SolvingStationGraph(depot)
+    graph.add_station(s1)
+    graph.add_station(s2)
+    graph.add_station(s3)
+    graph.add_station(s4)
+
+    print(f"Graphe créé avec {graph.size()} stations:")
+    print(f"  - {depot.name} (Dépôt)")
+    for station in [s1, s2, s3, s4]:
+        print(f"  - {station.name}: bike_gap = {station.bike_gap()}")
+
+    print(f"\nSomme des bike_gap: {sum(s.bike_gap() for s in [s1, s2, s3, s4])}")
+    print(f"Capacité du véhicule: {vehicle_capacity}")
+    print(f"Alpha: {alpha}\n")
+
+    assert is_graph_solvable(graph, vehicle_capacity)
+
+    # Exécution de la méthode 1
+    print("Exécution de la méthode 1...")
+    try:
+        method1(graph, vehicle_capacity, alpha)
+        print("\n✓ Méthode 1 terminée avec succès!")
+
+        # Affichage du chemin résultant
+        print("\nChemin résultant:")
+        edges = graph.list_edges()
+        print(f"  Nombre d'arêtes: {len(edges)}")
+
+        # Reconstruction et affichage du chemin
+        print("\n  Chemin du camion:")
+        current_id = 0
+        visited = set()
+        vehicle_load = 0
+
+        while current_id is not None and current_id not in visited:
+            visited.add(current_id)
+            station = graph.get_station(current_id)
+            print(f"    Station {current_id} ({station.name}): charge = {vehicle_load} vélos")
+
+            successor = graph.get_successor(current_id)
+            if successor is not None:
+                next_station = graph.get_station(successor)
+                vehicle_load += next_station.bike_gap()
+
+            current_id = successor
+
+    except Exception as e:
+        print(f"\n✗ Erreur lors de l'exécution: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    test_method1()
