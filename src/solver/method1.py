@@ -49,9 +49,6 @@ def create_path(graph: SolvingStationGraph, q: int, alpha: int):
 
     graph.add_edge(cursor_station.id, 0)
 
-    #Print paths
-    print(graph.list_edges())
-
 
 def loop(graph: SolvingStationGraph, vehicle_capacity: int) -> bool:
     """
@@ -66,12 +63,13 @@ def loop(graph: SolvingStationGraph, vehicle_capacity: int) -> bool:
     max_station_id: int = 0
 
     cursor_station: TargetedStation = graph.get_station(graph.get_successor(0))
-    while cursor_station is not None:
+    while cursor_station is not None and cursor_station.id != 0:
         vehicle_load += cursor_station.bike_gap()
         if abs(vehicle_load) > abs(max_station_load):
             max_station_load = vehicle_load
             max_station_id = cursor_station.id
         cursor_station = graph.get_station(graph.get_successor(cursor_station.id))
+
 
     if max_station_load <= vehicle_capacity:
         return True
@@ -109,7 +107,7 @@ def choice(graph: SolvingStationGraph, station_id: int, station_load: int, vehic
 
     station: TargetedStation = graph.get_station(station_id)
     cursor_id: int | None = graph.get_successor(station_id)
-    while cursor_id is not None:
+    while cursor_id is not None and cursor_id != 0:
         cursor: TargetedStation = graph.get_station(cursor_id)
         station_load += cursor.bike_gap()
 
@@ -134,7 +132,7 @@ def method1(graph: SolvingStationGraph, vehicle_capacity: int, alpha: int):
     create_path(graph, vehicle_capacity, alpha)
     N=0
     while not loop(graph, vehicle_capacity) and N < 1000:
-        loop(graph, vehicle_capacity)
+        print("N: ", N)
         N+=1
 
 
@@ -146,7 +144,7 @@ def test_method1():
 
     # Paramètres
     vehicle_capacity = 20  # Capacité du camion
-    alpha = 0  # Paramètre d'optimisation
+    alpha = 0 # Paramètre d'optimisation
 
     # Création du dépôt (station 0)
     depot = Station(0, "Dépôt", 50, "1 Rue du Dépôt", -1.5536, 47.2173)
@@ -195,7 +193,7 @@ def test_method1():
     print("Exécution de la méthode 1...")
     try:
         method1(graph, vehicle_capacity, alpha)
-        print("\n✓ Méthode 1 terminée avec succès!")
+        print("\nMéthode 1 terminée avec succès!")
 
         # Affichage du chemin résultant
         print("\nChemin résultant:")
@@ -224,7 +222,6 @@ def test_method1():
         print(f"\n✗ Erreur lors de l'exécution: {e}")
         import traceback
         traceback.print_exc()
-
 
 if __name__ == "__main__":
     test_method1()
