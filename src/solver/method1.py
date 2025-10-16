@@ -15,6 +15,8 @@ def create_path(graph: SolvingStationGraph, q: int, alpha: int):
     :param alpha: Paramètre d'optimisation choisie par l'utilisateur
     :return: Créer le chemin dans le graphe
     """
+    graph.take_snapshot("État initial", [], None)
+
     stations = graph.list_stations()
     unloading_stations: list[TargetedStation] = []
     loading_stations: list[TargetedStation] = []
@@ -29,6 +31,8 @@ def create_path(graph: SolvingStationGraph, q: int, alpha: int):
     cursor_station: TargetedStation = loading_stations[random.randint(0, len(loading_stations) - 1)]
     graph.add_edge(0, cursor_station.id)
     vehicle_load += cursor_station.bike_gap()
+    graph.take_snapshot(f"Première station: {cursor_station.name} (charge: {vehicle_load})",
+                       [cursor_station.id], (0, cursor_station.id))
 
     for i in range(1, graph.size() - 1):
         nearest_station: TargetedStation | None = graph.get_nearest_neighbor(
@@ -45,9 +49,12 @@ def create_path(graph: SolvingStationGraph, q: int, alpha: int):
 
         graph.add_edge(cursor_station.id, nearest_station.id)
         vehicle_load += nearest_station.bike_gap()
+        graph.take_snapshot(f"Ajout station {nearest_station.name} (charge: {vehicle_load})",
+                           [nearest_station.id], (cursor_station.id, nearest_station.id))
         cursor_station = nearest_station
 
     graph.add_edge(cursor_station.id, 0)
+    graph.take_snapshot(f"Retour au dépôt (charge finale: {vehicle_load})", [0], (cursor_station.id, 0))
 
 
 def loop(graph: SolvingStationGraph, vehicle_capacity: int) -> bool:
@@ -72,12 +79,21 @@ def loop(graph: SolvingStationGraph, vehicle_capacity: int) -> bool:
 
 
     if max_station_load <= vehicle_capacity:
+        graph.take_snapshot(f"Solution trouvée! Charge max: {max_station_load}", [], None)
         return True
+
+    max_station_name = graph.get_station(max_station_id).name
+    graph.take_snapshot(f"Station avec charge max: {max_station_name} (charge: {max_station_load})",
+                       [max_station_id], None)
 
     max_station_predecessor_id: int = graph.get_predecessor(max_station_id)
     max_station_successor_id: int = graph.get_successor(max_station_id)
 
     target_station_id: int = choice(graph, max_station_id, max_station_load, vehicle_capacity)
+    target_station_name = graph.get_station(target_station_id).name
+    graph.take_snapshot(f"Échange: {max_station_name} ↔ {target_station_name}",
+                       [max_station_id, target_station_id], None)
+
     target_station_predecessor_id: int = graph.get_predecessor(target_station_id)
     target_station_successor_id: int = graph.get_successor(target_station_id)
 
@@ -90,6 +106,8 @@ def loop(graph: SolvingStationGraph, vehicle_capacity: int) -> bool:
     graph.add_edge(target_station_id, max_station_successor_id)
     graph.add_edge(target_station_predecessor_id, max_station_id)
     graph.add_edge(max_station_id, target_station_successor_id)
+
+    graph.take_snapshot(f"Après échange (nouvelle charge à vérifier)", [], None)
 
     return False
 
@@ -139,6 +157,8 @@ def test_method1():
     """
     Test de la méthode 1 avec un graphe simple
     """
+    from src.solver.graph import animate_graph
+
     print("=== Test de la méthode 1 ===\n")
 
     # Paramètres
@@ -216,6 +236,12 @@ def test_method1():
                 vehicle_load += next_station.bike_gap()
 
             current_id = successor
+
+        # Génération de l'animation
+        print(f"\n  Nombre de snapshots capturés: {len(graph.snapshots)}")
+        print("\nGénération de l'animation...")
+        animate_graph(graph, output_file="method1_animation", interval=800, save_gif=True)
+        print("Animation sauvegardée dans method1_animation.gif")
 
     except Exception as e:
         print(f"\n✗ Erreur lors de l'exécution: {e}")
