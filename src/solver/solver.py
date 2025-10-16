@@ -8,8 +8,7 @@ def create_graph(stations: list[TargetedStation], depot_station: Station) -> Sol
     :param depot_station: Station correspondant au dépot
     :return: Le graphe nécessaire pour résoudre le problème
     """
-    targeted_depot_station = TargetedStation.from_station(depot_station, 0, 0)
-    graph = SolvingStationGraph(targeted_depot_station)
+    graph = SolvingStationGraph(depot_station)
 
     for station in stations:
         if station.bike_gap() != 0:

@@ -132,7 +132,6 @@ def method1(graph: SolvingStationGraph, vehicle_capacity: int, alpha: int):
     create_path(graph, vehicle_capacity, alpha)
     N=0
     while not loop(graph, vehicle_capacity) and N < 1000:
-        print("N: ", N)
         N+=1
 
 
