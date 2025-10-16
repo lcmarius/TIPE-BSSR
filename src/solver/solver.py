@@ -14,6 +14,9 @@ def create_graph(stations: list[TargetedStation], depot_station: Station) -> Sol
         if station.bike_gap() != 0:
             graph.add_station(station)
 
+
+
+
     return graph
 
 def is_graph_solvable(graph: SolvingStationGraph, q: int) -> bool:
