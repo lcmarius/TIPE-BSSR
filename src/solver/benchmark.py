@@ -1,0 +1,468 @@
+import random
+import time
+from typing import Callable, Dict, List
+
+from src.objects.station import TargetedStation, Station
+from src.solver.algorithm.method1 import method1
+from src.solver.algorithm.opt2 import opt2
+from src.solver.algorithm.opt3 import opt3
+from src.solver.graph import SolvingStationGraph
+from src.solver.reviewer import review_solution, SolutionMetrics
+
+
+class BenchmarkResult:
+    """Résultat d'un benchmark pour un algorithme"""
+    def __init__(self, name: str):
+        self.name = name
+        self.scores: List[float] = []
+        self.times: List[float] = []
+        self.gaps: List[float] = []  # Écarts relatifs par rapport au meilleur pour chaque problème
+        self.failed_seeds: List[int] = []
+        self.success_count = 0
+
+    def add_success(self, metrics: SolutionMetrics, time_ms: float):
+        """Ajoute un résultat réussi"""
+        self.scores.append(metrics.score)
+        self.times.append(time_ms)
+        self.success_count += 1
+
+    def add_failure(self, seed: int):
+        """Ajoute un échec"""
+        self.failed_seeds.append(seed)
+
+    def add_gap(self, gap_percent: float):
+        """Ajoute un écart relatif"""
+        self.gaps.append(gap_percent)
+
+    def avg_score(self) -> float:
+        """Score moyen"""
+        return sum(self.scores) / len(self.scores) if self.scores else 0.0
+
+    def avg_time(self) -> float:
+        """Temps moyen en ms"""
+        return sum(self.times) / len(self.times) if self.times else 0.0
+
+    def avg_gap(self) -> float:
+        """Écart moyen par rapport au meilleur (en %)"""
+        return sum(self.gaps) / len(self.gaps) if self.gaps else 0.0
+
+    def success_rate(self, total_problems: int) -> float:
+        """Taux de succès en %"""
+        return (self.success_count / total_problems * 100) if total_problems > 0 else 0.0
+
+
+def run_benchmark(
+    algorithms: Dict[str, Callable[[SolvingStationGraph, int], None]],
+    generator_func: Callable[[int, int, int], tuple[SolvingStationGraph, Station, list]],
+    n_stations: int = 10,
+    vehicle_capacity: int = 15,
+    num_problems: int = 50,
+    base_seed: int = 42,
+    verbose: bool = True,
+) -> Dict[str, BenchmarkResult]:
+    """
+    Lance un benchmark comparatif des algorithmes
+
+    :param algorithms: Dictionnaire {nom: fonction_algorithme}
+    :param n_stations: Nombre de stations par problème
+    :param vehicle_capacity: Capacité du véhicule
+    :param num_problems: Nombre de problèmes à tester
+    :param base_seed: Graine de base pour la reproductibilité
+    :param verbose: Afficher la progression
+    :param generator_func: Fonction pour générer les instances de problèmes
+    :return: Dictionnaire {nom: BenchmarkResult}
+    """
+    if verbose:
+        print("="*80)
+        print("🔬 BENCHMARK - Comparaison des algorithmes")
+        print("="*80)
+        print(f"\nParamètres:")
+        print(f"  - Nombre de problèmes: {num_problems}")
+        print(f"  - Stations par problème: {n_stations}")
+        print(f"  - Capacité du véhicule: {vehicle_capacity}")
+        print(f"  - Algorithmes testés: {list(algorithms.keys())}")
+        print()
+
+    seeds = [base_seed + i * 100 for i in range(num_problems)]
+
+    results = {name: BenchmarkResult(name) for name in algorithms}
+
+    for i, seed in enumerate(seeds):
+        if verbose and (i + 1) % 10 == 0:
+            print(f"  Problème {i+1}/{num_problems}...")
+
+        problem_results = {}
+
+        for algo_name, algo_func in algorithms.items():
+            try:
+                graph, depot, stations = generator_func(n_stations, vehicle_capacity, seed)
+
+                start_time = time.time()
+                algo_func(graph, vehicle_capacity)
+                elapsed_time = (time.time() - start_time) * 1000  # en ms
+
+                metrics = review_solution(graph)
+                results[algo_name].add_success(metrics, elapsed_time)
+                problem_results[algo_name] = metrics.distance
+
+            except Exception as e:
+                results[algo_name].add_failure(seed)
+                if verbose:
+                    print(f"  ✗ {algo_name} a échoué sur seed {seed}: {e}")
+
+        if problem_results:
+            best_distance = min(problem_results.values())
+            for algo_name, distance in problem_results.items():
+                gap_percent = ((distance - best_distance) / best_distance * 100) if best_distance > 0 else 0.0
+                results[algo_name].add_gap(gap_percent)
+
+    return results
+
+
+def method1_only(graph: SolvingStationGraph, vehicle_capacity: int):
+    """Méthode 1 greedy seule"""
+    method1(graph, vehicle_capacity)
+
+
+def method1_with_opt2(graph: SolvingStationGraph, vehicle_capacity: int):
+    """Méthode 1 greedy + 2-opt"""
+    method1(graph, vehicle_capacity)
+    opt2(graph, vehicle_capacity)
+
+def method1_with_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
+    """Méthode 1 greedy + 3-opt"""
+    method1(graph, vehicle_capacity)
+    opt3(graph, vehicle_capacity)
+
+
+def method1_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
+    """Méthode 1 greedy + 2-opt + 3-opt"""
+    method1(graph, vehicle_capacity)
+    opt2(graph, vehicle_capacity)
+    opt3(graph, vehicle_capacity)
+
+def generate_random_instance(n_stations: int, vehicle_capacity: int, seed: int = None):
+    """
+    Génère une instance aléatoire uniforme
+    :param n_stations: Nombre de stations (sans compter le dépôt)
+    :param vehicle_capacity: Capacité du camion
+    :param seed: Graine aléatoire pour la reproductibilité
+    :return: (graph, depot, stations)
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    depot = Station(0, "Dépôt", 50, "Centre", -1.5536, 47.2173)
+    max_gap = vehicle_capacity // 2 - 1
+    stations = []
+    bike_gaps = []
+
+    for i in range(n_stations):
+        if i % 2 == 0:
+            gap = random.randint(1, max_gap)
+        else:
+            gap = random.randint(-max_gap, -1)
+        bike_gaps.append(gap)
+
+    current_sum = sum(bike_gaps)
+    bike_gaps[-1] -= current_sum
+
+    for i in range(n_stations):
+        long = depot.long + random.uniform(-0.05, 0.05)
+        lat = depot.lat + random.uniform(-0.05, 0.05)
+
+        capacity = random.randint(15, 30)
+        bike_target = random.randint(5, capacity - 5)
+        bike_count = bike_target + bike_gaps[i]
+
+        station = TargetedStation(
+            i + 1,
+            f"Station {chr(65 + i)}" if i < 26 else f"Station {i + 1}",
+            capacity,
+            f"{i + 1} Rue {chr(65 + i)}" if i < 26 else f"{i + 1} Rue {i + 1}",
+            long, lat, bike_count, bike_target
+        )
+        stations.append(station)
+
+    graph = SolvingStationGraph(depot)
+    for station in stations:
+        graph.add_station(station)
+
+    return graph, depot, stations
+
+
+def generate_clustered_instance(n_stations: int, vehicle_capacity: int, seed: int = None):
+    """
+    Génère une instance avec stations groupées en clusters
+    :return: (graph, depot, stations)
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    depot = Station(0, "Dépôt", 50, "Centre", -1.5536, 47.2173)
+    max_gap = vehicle_capacity // 2 - 1
+
+    # Créer 3 clusters autour du dépôt
+    num_clusters = 3
+    cluster_centers = [
+        (depot.long + 0.03, depot.lat + 0.03),   # Nord-Est
+        (depot.long - 0.03, depot.lat + 0.02),   # Nord-Ouest
+        (depot.long, depot.lat - 0.03),          # Sud
+    ]
+
+    stations = []
+    bike_gaps = []
+
+    for i in range(n_stations):
+        gap = random.randint(1, max_gap) if i % 2 == 0 else random.randint(-max_gap, -1)
+        bike_gaps.append(gap)
+
+    bike_gaps[-1] -= sum(bike_gaps)
+
+    for i in range(n_stations):
+        # Assigner à un cluster
+        cluster_idx = i % num_clusters
+        center_long, center_lat = cluster_centers[cluster_idx]
+
+        # Position proche du centre du cluster
+        long = center_long + random.uniform(-0.01, 0.01)
+        lat = center_lat + random.uniform(-0.01, 0.01)
+
+        capacity = random.randint(15, 30)
+        bike_target = random.randint(5, capacity - 5)
+        bike_count = bike_target + bike_gaps[i]
+
+        station = TargetedStation(
+            i + 1,
+            f"Station {chr(65 + i)}" if i < 26 else f"Station {i + 1}",
+            capacity,
+            f"{i + 1} Rue {chr(65 + i)}" if i < 26 else f"{i + 1} Rue {i + 1}",
+            long, lat, bike_count, bike_target
+        )
+        stations.append(station)
+
+    graph = SolvingStationGraph(depot)
+    for station in stations:
+        graph.add_station(station)
+
+    return graph, depot, stations
+
+
+def generate_hub_spoke_instance(n_stations: int, vehicle_capacity: int, seed: int = None):
+    """
+    Génère une instance hub-and-spoke (étoile autour du dépôt)
+    :return: (graph, depot, stations)
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    depot = Station(0, "Dépôt", 50, "Centre", -1.5536, 47.2173)
+    max_gap = vehicle_capacity // 2 - 1
+
+    stations = []
+    bike_gaps = []
+
+    for i in range(n_stations):
+        gap = random.randint(1, max_gap) if i % 2 == 0 else random.randint(-max_gap, -1)
+        bike_gaps.append(gap)
+
+    bike_gaps[-1] -= sum(bike_gaps)
+
+    for i in range(n_stations):
+        # 70% des stations proches du dépôt, 30% éloignées
+        if random.random() < 0.7:
+            # Proche du dépôt
+            long = depot.long + random.uniform(-0.02, 0.02)
+            lat = depot.lat + random.uniform(-0.02, 0.02)
+        else:
+            # Éloignée (outliers)
+            long = depot.long + random.uniform(-0.06, 0.06)
+            lat = depot.lat + random.uniform(-0.06, 0.06)
+
+        capacity = random.randint(15, 30)
+        bike_target = random.randint(5, capacity - 5)
+        bike_count = bike_target + bike_gaps[i]
+
+        station = TargetedStation(
+            i + 1,
+            f"Station {chr(65 + i)}" if i < 26 else f"Station {i + 1}",
+            capacity,
+            f"{i + 1} Rue {chr(65 + i)}" if i < 26 else f"{i + 1} Rue {i + 1}",
+            long, lat, bike_count, bike_target
+        )
+        stations.append(station)
+
+    graph = SolvingStationGraph(depot)
+    for station in stations:
+        graph.add_station(station)
+
+    return graph, depot, stations
+
+
+def generate_tight_capacity_instance(n_stations: int, vehicle_capacity: int, seed: int = None):
+    """
+    Génère une instance avec des gaps proches de la limite de capacité
+    :return: (graph, depot, stations)
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    depot = Station(0, "Dépôt", 50, "Centre", -1.5536, 47.2173)
+    max_gap = vehicle_capacity // 2 - 1
+
+    stations = []
+    bike_gaps = []
+
+    # Créer des gaps proches de la limite (80-100% de max_gap)
+    for i in range(n_stations):
+        if i % 2 == 0:
+            gap = random.randint(int(max_gap * 0.8), max_gap)
+        else:
+            gap = random.randint(-max_gap, int(-max_gap * 0.8))
+        bike_gaps.append(gap)
+
+    bike_gaps[-1] -= sum(bike_gaps)
+
+    for i in range(n_stations):
+        long = depot.long + random.uniform(-0.05, 0.05)
+        lat = depot.lat + random.uniform(-0.05, 0.05)
+
+        capacity = random.randint(15, 30)
+        bike_target = random.randint(5, capacity - 5)
+        bike_count = bike_target + bike_gaps[i]
+
+        station = TargetedStation(
+            i + 1,
+            f"Station {chr(65 + i)}" if i < 26 else f"Station {i + 1}",
+            capacity,
+            f"{i + 1} Rue {chr(65 + i)}" if i < 26 else f"{i + 1} Rue {i + 1}",
+            long, lat, bike_count, bike_target
+        )
+        stations.append(station)
+
+    graph = SolvingStationGraph(depot)
+    for station in stations:
+        graph.add_station(station)
+
+    return graph, depot, stations
+
+def print_category_results(category_name: str, results: Dict[str, BenchmarkResult], num_problems: int):
+    """Affiche les résultats d'une catégorie"""
+    print("\n" + "=" * 110)
+    print(f"📊 CATÉGORIE: {category_name}")
+    print("=" * 110)
+
+    print(f"\n{'Algorithme':<25} {'Gap vs Best (%)':<16} {'Score':<8} {'Temps (ms)':<12} {'Succès'}")
+    print("-" * 110)
+
+    # Trier par gap moyen (meilleur = gap le plus faible)
+    sorted_results = sorted(results.items(), key=lambda x: x[1].avg_gap() if x[1].success_count > 0 else float('inf'))
+
+    for name, result in sorted_results:
+        if result.success_count > 0:
+            print(f"{name:<25} {result.avg_gap():<16.2f}"
+                  f"{result.avg_score():<8.4f} {result.avg_time():<12.2f} "
+                  f"{result.success_count}/{num_problems} ({result.success_rate(num_problems):.1f}%)")
+        else:
+            print(f"{name:<25} {'N/A':<16} {'N/A':<15} {'N/A':<8} {'N/A':<12} "
+                  f"0/{num_problems} (0.0%)")
+
+    best_algo = sorted_results[0] if sorted_results and sorted_results[0][1].success_count > 0 else None
+    if best_algo:
+        print(f"\n  🏆 Meilleur: {best_algo[0]} (gap moyen: {best_algo[1].avg_gap():.2f}%)")
+
+
+def print_global_summary(all_results: Dict[str, Dict[str, BenchmarkResult]], num_problems: int):
+    """Affiche le bilan global sur toutes les catégories"""
+    print("\n" + "=" * 110)
+    print("🏆 BILAN GLOBAL (moyenne sur toutes les catégories)")
+    print("=" * 110)
+
+    # Calculer les moyennes globales par algorithme
+    algo_names = list(next(iter(all_results.values())).keys())
+    global_stats = {}
+
+    for algo_name in algo_names:
+        total_gap = 0.0
+        total_score = 0.0
+        total_time = 0.0
+        count = 0
+
+        for category_results in all_results.values():
+            result = category_results[algo_name]
+            if result.success_count > 0:
+                total_gap += result.avg_gap()
+                total_score += result.avg_score()
+                total_time += result.avg_time()
+                count += 1
+
+        if count > 0:
+            global_stats[algo_name] = {
+                'avg_gap': total_gap / count,
+                'avg_score': total_score / count,
+                'avg_time': total_time / count,
+                'count': count
+            }
+
+    print(f"\n{'Algorithme':<30} {'Gap vs Best (%)':<16} {'Score':<10} {'Temps (ms)':<12}")
+    print("-" * 110)
+
+    # Trier par gap moyen (meilleur = gap le plus faible)
+    for algo_name, stats in sorted(global_stats.items(), key=lambda x: x[1]['avg_gap']):
+        print(f"{algo_name:<30} {stats['avg_gap']:<16.2f} {stats['avg_score']:<10.4f} {stats['avg_time']:<12.2f}")
+
+    best_algo = min(global_stats.items(), key=lambda x: x[1]['avg_gap'])
+    print("\n" + "=" * 110)
+    print(f"🏆 CHAMPION GLOBAL: {best_algo[0]}")
+    print(f"   Gap moyen: {best_algo[1]['avg_gap']:.2f}%")
+    print(f"   Score moyen: {best_algo[1]['avg_score']:.4f}")
+    print("=" * 110)
+
+
+def run_benchmarks():
+    """Lance les benchmarks sur plusieurs catégories et affiche les résultats"""
+    algorithms = {
+        "Method1 (greedy)": method1_only,
+        "Method1 + 2-opt": method1_with_opt2,
+        "Method1 + 3-opt": method1_with_opt3,
+        "Method1 + 2-opt + 3-opt": method1_with_opt2_then_opt3,
+    }
+
+    categories = {
+        "Random Uniform": generate_random_instance,
+        "Clustered": generate_clustered_instance,
+        "Hub-and-Spoke": generate_hub_spoke_instance,
+        "Tight Capacity": generate_tight_capacity_instance,
+    }
+
+    n_stations = 30
+    vehicle_capacity = 15
+    num_problems = 10
+    base_seed = 68
+
+    all_results = {}
+
+    # Lancer les benchmarks pour chaque catégorie
+    for category_name, generator_func in categories.items():
+        print(f"\n🔄 Running benchmark: {category_name}...")
+        results = run_benchmark(
+            algorithms=algorithms,
+            generator_func=generator_func,
+            n_stations=n_stations,
+            vehicle_capacity=vehicle_capacity,
+            num_problems=num_problems,
+            base_seed=base_seed,
+            verbose=False
+        )
+        all_results[category_name] = results
+
+    # Afficher les résultats par catégorie
+    for category_name, results in all_results.items():
+        print_category_results(category_name, results, num_problems)
+
+    # Afficher le bilan global
+    print_global_summary(all_results, num_problems)
+
+
+if __name__ == "__main__":
+    run_benchmarks()

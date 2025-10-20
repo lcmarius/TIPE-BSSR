@@ -37,4 +37,3 @@ def is_graph_solvable(graph: SolvingStationGraph, q: int) -> bool:
             total += station.bike_gap()
 
     return total == 0
-

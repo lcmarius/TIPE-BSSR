@@ -127,6 +127,22 @@ class SolvingStationGraph:
 
         return nearest_station
 
+    def get_turn(self) -> list[int]:
+        """
+        Récupère le tour actuel du graphe sous forme de liste d'IDs
+        :return: Liste des IDs dans l'ordre du tour
+        """
+        turn = []
+        current_id = 0
+        visited = set()
+
+        while current_id is not None and current_id not in visited:
+            turn.append(current_id)
+            visited.add(current_id)
+            current_id = self.get_successor(current_id)
+
+        return turn
+
     def take_snapshot(self, description: str = "", highlighted_stations: List[int] = None,
                      highlighted_edge: Tuple[int, int] = None):
         """
@@ -272,6 +288,71 @@ def animate_graph(graph: SolvingStationGraph, output_file: str = "algorithm_anim
     else:
         plt.show()
 
+    plt.close()
+
+
+def save_final_solution(graph: SolvingStationGraph, output_file: str = "solution.png"):
+    """
+    Sauvegarde une image PNG de la solution finale
+    :param graph: Le graphe avec la solution
+    :param output_file: Nom du fichier de sortie
+    """
+    if not graph.snapshots:
+        raise Exception("No snapshots recorded.")
+
+    fig, ax = plt.subplots(figsize=(12, 8), dpi=150)
+
+    # Utiliser la dernière snapshot (solution finale)
+    snapshot = graph.snapshots[-1]
+
+    pos = {}
+    for station in graph.list_stations():
+        pos[station.id] = (station.long, station.lat)
+
+    # Calculer les limites des axes
+    all_x = [p[0] for p in pos.values()]
+    all_y = [p[1] for p in pos.values()]
+    margin = 0.02
+    x_margin = (max(all_x) - min(all_x)) * margin
+    y_margin = (max(all_y) - min(all_y)) * margin
+    xlim = (min(all_x) - x_margin, max(all_x) + x_margin)
+    ylim = (min(all_y) - y_margin, max(all_y) + y_margin)
+
+    G = nx.DiGraph()
+    for sid in snapshot.station_map:
+        G.add_node(sid)
+    for sid, neighbor in snapshot.stations.items():
+        if neighbor is not None:
+            G.add_edge(sid, neighbor)
+
+    node_colors = []
+    for node in G.nodes():
+        gap = snapshot.station_map[node].bike_gap()
+        if gap > 0:
+            node_colors.append('lightgreen')
+        elif gap < 0:
+            node_colors.append('lightcoral')
+        else:
+            node_colors.append('lightblue')
+
+    nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=700,
+                          ax=ax, node_shape='s')
+
+    nx.draw_networkx_edges(G, pos, edge_color='black', arrows=True,
+                          arrowsize=20, width=2, ax=ax)
+
+    labels = {}
+    for sid, st in snapshot.station_map.items():
+        labels[sid] = f"{sid}\n{st.bike_gap()}"
+    nx.draw_networkx_labels(G, pos, labels, font_size=10, font_weight='bold', ax=ax)
+
+    ax.set_title("Solution finale", fontsize=16, fontweight='bold')
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.axis('off')
+
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=150, bbox_inches='tight')
     plt.close()
 
 
