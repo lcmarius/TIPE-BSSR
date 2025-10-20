@@ -18,7 +18,6 @@ def review_solution(graph: SolvingStationGraph) -> SolutionMetrics:
     current_id = 0
     visited = set()
 
-    # Calculer la distance totale
     while current_id is not None and current_id not in visited:
         visited.add(current_id)
         station = graph.get_station(current_id)
