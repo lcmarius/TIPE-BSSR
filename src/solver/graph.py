@@ -176,16 +176,29 @@ def animate_graph(graph: SolvingStationGraph, output_file: str = "algorithm_anim
                 G.add_edge(sid, neighbor)
 
         node_colors = []
+        edge_colors_nodes = []
+        linewidths = []
+
         for node in G.nodes():
-            if node in snapshot.highlighted_stations:
-                node_colors.append('orange')
-            elif node == 0:
-                node_colors.append('lightblue')
+            # Couleur de fond selon le gap
+            gap = snapshot.station_map[node].bike_gap()
+            if gap > 0:
+                node_colors.append('lightgreen')  # Excès de vélos
+            elif gap < 0:
+                node_colors.append('lightcoral')  # Déficit de vélos
             else:
-                node_colors.append('lightgreen')
+                node_colors.append('lightblue')  # Équilibré
+
+            if node in snapshot.highlighted_stations:
+                edge_colors_nodes.append('red')
+                linewidths.append(2)
+            else:
+                edge_colors_nodes.append('none')
+                linewidths.append(0)
 
         nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=700,
-                              ax=ax, node_shape='s')
+                              ax=ax, node_shape='s', edgecolors=edge_colors_nodes,
+                              linewidths=linewidths)
 
         edge_colors = []
         for edge in G.edges():
@@ -199,11 +212,12 @@ def animate_graph(graph: SolvingStationGraph, output_file: str = "algorithm_anim
 
         labels = {}
         for sid, st in snapshot.station_map.items():
-            labels[sid] = f"{sid}\n{st.bike_count}/{st.bike_target}"
-        nx.draw_networkx_labels(G, pos, labels, font_size=8, ax=ax)
+            labels[sid] = f"{sid}\n{st.bike_gap()}"
+        nx.draw_networkx_labels(G, pos, labels, font_size=10, font_weight='bold', ax=ax)
 
         ax.set_title(f"Step {frame_num + 1}/{len(graph.snapshots)}: {snapshot.description}",
                     fontsize=14, fontweight='bold')
+
         ax.axis('off')
 
     anim = animation.FuncAnimation(fig, draw_frame, frames=len(graph.snapshots),
@@ -249,6 +263,3 @@ def test():
     assert len(g.list_edges()) == 0
 
     print("All tests passed!")
-
-if __name__ == "__main__":
-    test()
