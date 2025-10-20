@@ -1,5 +1,6 @@
 import random
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Dict, List
 
 from src.objects.station import TargetedStation, Station
@@ -59,9 +60,10 @@ def run_benchmark(
     num_problems: int = 50,
     base_seed: int = 42,
     verbose: bool = True,
+    max_workers: int = None,
 ) -> Dict[str, BenchmarkResult]:
     """
-    Lance un benchmark comparatif des algorithmes
+    Lance un benchmark comparatif des algorithmes avec multithreading
 
     :param algorithms: Dictionnaire {nom: fonction_algorithme}
     :param n_stations: Nombre de stations par problème
@@ -70,22 +72,37 @@ def run_benchmark(
     :param base_seed: Graine de base pour la reproductibilité
     :param verbose: Afficher la progression
     :param generator_func: Fonction pour générer les instances de problèmes
+    :param max_workers: Nombre de threads (None = auto)
     :return: Dictionnaire {nom: BenchmarkResult}
     """
     if verbose:
         print("="*80)
-        print("🔬 BENCHMARK - Comparaison des algorithmes")
+        print("🔬 BENCHMARK - Comparaison des algorithmes (multithreading)")
         print("="*80)
         print(f"\nParamètres:")
         print(f"  - Nombre de problèmes: {num_problems}")
         print(f"  - Stations par problème: {n_stations}")
         print(f"  - Capacité du véhicule: {vehicle_capacity}")
         print(f"  - Algorithmes testés: {list(algorithms.keys())}")
+        print(f"  - Threads: {max_workers if max_workers else 'auto'}")
         print()
 
     seeds = [base_seed + i * 100 for i in range(num_problems)]
-
     results = {name: BenchmarkResult(name) for name in algorithms}
+
+    def run_algorithm_on_problem(algo_name: str, algo_func: Callable, seed: int):
+        """Exécute un algorithme sur un problème donné"""
+        try:
+            graph, depot, stations = generator_func(n_stations, vehicle_capacity, seed)
+
+            start_time = time.time()
+            algo_func(graph, vehicle_capacity)
+            elapsed_time = (time.time() - start_time) * 1000  # en ms
+
+            metrics = review_solution(graph)
+            return algo_name, seed, metrics, elapsed_time, None
+        except Exception as e:
+            return algo_name, seed, None, None, e
 
     for i, seed in enumerate(seeds):
         if verbose and (i + 1) % 10 == 0:
@@ -93,22 +110,22 @@ def run_benchmark(
 
         problem_results = {}
 
-        for algo_name, algo_func in algorithms.items():
-            try:
-                graph, depot, stations = generator_func(n_stations, vehicle_capacity, seed)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(run_algorithm_on_problem, algo_name, algo_func, seed): algo_name
+                for algo_name, algo_func in algorithms.items()
+            }
 
-                start_time = time.time()
-                algo_func(graph, vehicle_capacity)
-                elapsed_time = (time.time() - start_time) * 1000  # en ms
+            for future in as_completed(futures):
+                algo_name, returned_seed, metrics, elapsed_time, error = future.result()
 
-                metrics = review_solution(graph)
-                results[algo_name].add_success(metrics, elapsed_time)
-                problem_results[algo_name] = metrics.distance
-
-            except Exception as e:
-                results[algo_name].add_failure(seed)
-                if verbose:
-                    print(f"  ✗ {algo_name} a échoué sur seed {seed}: {e}")
+                if error is None:
+                    results[algo_name].add_success(metrics, elapsed_time)
+                    problem_results[algo_name] = metrics.distance
+                else:
+                    results[algo_name].add_failure(returned_seed)
+                    if verbose:
+                        print(f"  ✗ {algo_name} a échoué sur seed {returned_seed}: {error}")
 
         if problem_results:
             best_distance = min(problem_results.values())
@@ -355,7 +372,6 @@ def print_category_results(category_name: str, results: Dict[str, BenchmarkResul
     print(f"\n{'Algorithme':<25} {'Gap vs Best (%)':<16} {'Score':<8} {'Temps (ms)':<12} {'Succès'}")
     print("-" * 110)
 
-    # Trier par gap moyen (meilleur = gap le plus faible)
     sorted_results = sorted(results.items(), key=lambda x: x[1].avg_gap() if x[1].success_count > 0 else float('inf'))
 
     for name, result in sorted_results:
@@ -378,7 +394,6 @@ def print_global_summary(all_results: Dict[str, Dict[str, BenchmarkResult]], num
     print("🏆 BILAN GLOBAL (moyenne sur toutes les catégories)")
     print("=" * 110)
 
-    # Calculer les moyennes globales par algorithme
     algo_names = list(next(iter(all_results.values())).keys())
     global_stats = {}
 
@@ -407,7 +422,6 @@ def print_global_summary(all_results: Dict[str, Dict[str, BenchmarkResult]], num
     print(f"\n{'Algorithme':<30} {'Gap vs Best (%)':<16} {'Score':<10} {'Temps (ms)':<12}")
     print("-" * 110)
 
-    # Trier par gap moyen (meilleur = gap le plus faible)
     for algo_name, stats in sorted(global_stats.items(), key=lambda x: x[1]['avg_gap']):
         print(f"{algo_name:<30} {stats['avg_gap']:<16.2f} {stats['avg_score']:<10.4f} {stats['avg_time']:<12.2f}")
 
@@ -420,7 +434,7 @@ def print_global_summary(all_results: Dict[str, Dict[str, BenchmarkResult]], num
 
 
 def run_benchmarks():
-    """Lance les benchmarks sur plusieurs catégories et affiche les résultats"""
+    """Lance les benchmarks sur plusieurs catégories en parallèle et affiche les résultats"""
     algorithms = {
         "Method1 (greedy)": method1_only,
         "Method1 + 2-opt": method1_with_opt2,
@@ -435,32 +449,45 @@ def run_benchmarks():
         "Tight Capacity": generate_tight_capacity_instance,
     }
 
-    n_stations = 30
+    n_stations = 20
     vehicle_capacity = 15
     num_problems = 10
-    base_seed = 68
+    base_seed = 4978
 
-    all_results = {}
+    print("\n" + "=" * 100)
+    print("🚀 Lancement des benchmarks en parallèle...")
+    print("=" * 100)
 
-    # Lancer les benchmarks pour chaque catégorie
-    for category_name, generator_func in categories.items():
-        print(f"\n🔄 Running benchmark: {category_name}...")
-        results = run_benchmark(
+    def run_category_benchmark(category_name: str, generator_func: Callable):
+        """Exécute le benchmark pour une catégorie"""
+        print(f"🔄 Running benchmark: {category_name}...")
+        return category_name, run_benchmark(
             algorithms=algorithms,
             generator_func=generator_func,
             n_stations=n_stations,
             vehicle_capacity=vehicle_capacity,
             num_problems=num_problems,
             base_seed=base_seed,
-            verbose=False
+            verbose=False,
+            max_workers=4
         )
-        all_results[category_name] = results
 
-    # Afficher les résultats par catégorie
-    for category_name, results in all_results.items():
-        print_category_results(category_name, results, num_problems)
+    all_results = {}
 
-    # Afficher le bilan global
+    with ThreadPoolExecutor(max_workers=4) as executor:  # 4 catégories en parallèle
+        futures = {
+            executor.submit(run_category_benchmark, category_name, generator_func): category_name
+            for category_name, generator_func in categories.items()
+        }
+
+        for future in as_completed(futures):
+            category_name, results = future.result()
+            all_results[category_name] = results
+
+    for category_name in categories.keys():
+        if category_name in all_results:
+            print_category_results(category_name, all_results[category_name], num_problems)
+
     print_global_summary(all_results, num_problems)
 
 
