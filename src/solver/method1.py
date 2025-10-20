@@ -41,7 +41,7 @@ def create_path(graph: SolvingStationGraph, q: int, alpha: int):
                 s.id != 0 and
                 s.id != cursor_station.id and
                 graph.get_predecessor(s.id) is None and
-                alpha <= vehicle_load + s.bike_gap() <= q + alpha
+                 abs(vehicle_load + s.bike_gap() )<= q + alpha
         )
 
         if nearest_station is None:
@@ -67,45 +67,71 @@ def loop(graph: SolvingStationGraph, vehicle_capacity: int) -> bool:
     """
     vehicle_load: int = graph.get_station(0).bike_gap()
     max_station_load: int = vehicle_load
+    min_station_load: int = vehicle_load
     max_station_id: int = 0
+    min_station_id: int = 0
 
     cursor_station: TargetedStation = graph.get_station(graph.get_successor(0))
     while cursor_station is not None and cursor_station.id != 0:
         vehicle_load += cursor_station.bike_gap()
-        if abs(vehicle_load) > abs(max_station_load):
+
+        if vehicle_load > max_station_load:
             max_station_load = vehicle_load
             max_station_id = cursor_station.id
+
+        if vehicle_load < min_station_load:
+            min_station_load = vehicle_load
+            min_station_id = cursor_station.id
+
         cursor_station = graph.get_station(graph.get_successor(cursor_station.id))
 
-
-    if max_station_load <= vehicle_capacity:
-        graph.take_snapshot(f"Solution trouvée! Charge max: {max_station_load}", [], None)
+    if 0 <= min_station_load and max_station_load <= vehicle_capacity:
+        graph.take_snapshot(f"Solution trouvée! Charge min: {min_station_load}, max: {max_station_load}", [], None)
         return True
 
-    max_station_name = graph.get_station(max_station_id).name
-    graph.take_snapshot(f"Station avec charge max: {max_station_name} (charge: {max_station_load})",
-                       [max_station_id], None)
+    violation_basse = abs(min_station_load) if min_station_load < 0 else 0
+    violation_haute = max_station_load - vehicle_capacity if max_station_load > vehicle_capacity else 0
 
-    max_station_predecessor_id: int = graph.get_predecessor(max_station_id)
-    max_station_successor_id: int = graph.get_successor(max_station_id)
+    if violation_haute > violation_basse:
+        violation_station_id = max_station_id
+        violation_load = max_station_load
+    else:
+        violation_station_id = min_station_id
+        violation_load = min_station_load
 
-    target_station_id: int = choice(graph, max_station_id, max_station_load, vehicle_capacity)
+    violation_station = graph.get_station(violation_station_id)
+
+    max_station_predecessor_id: int = graph.get_predecessor(violation_station_id)
+    max_station_successor_id: int = graph.get_successor(violation_station_id)
+
+    target_station_id: int = choice(graph, violation_station_id, violation_load, vehicle_capacity)
     target_station_name = graph.get_station(target_station_id).name
-    graph.take_snapshot(f"Échange: {max_station_name} ↔ {target_station_name}",
-                       [max_station_id, target_station_id], None)
+    graph.take_snapshot(f"Échange: {violation_station.name} ↔ {target_station_name}",
+                       [violation_station_id, target_station_id], None)
 
     target_station_predecessor_id: int = graph.get_predecessor(target_station_id)
     target_station_successor_id: int = graph.get_successor(target_station_id)
 
-    graph.remove_edge(max_station_predecessor_id, max_station_id)
-    graph.remove_edge(max_station_id, max_station_successor_id)
-    graph.remove_edge(target_station_predecessor_id, target_station_id)
-    graph.remove_edge(target_station_id, target_station_successor_id)
+    # Cas spécial : si les deux stations sont adjacentes (violation → target)
+    if max_station_successor_id == target_station_id:
+        graph.remove_edge(max_station_predecessor_id, violation_station_id)
+        graph.remove_edge(violation_station_id, target_station_id)
+        graph.remove_edge(target_station_id, target_station_successor_id)
 
-    graph.add_edge(max_station_predecessor_id, target_station_id)
-    graph.add_edge(target_station_id, max_station_successor_id)
-    graph.add_edge(target_station_predecessor_id, max_station_id)
-    graph.add_edge(max_station_id, target_station_successor_id)
+        graph.add_edge(max_station_predecessor_id, target_station_id)
+        graph.add_edge(target_station_id, violation_station_id)
+        graph.add_edge(violation_station_id, target_station_successor_id)
+    else:
+        # Cas général : les stations ne sont pas adjacentes
+        graph.remove_edge(max_station_predecessor_id, violation_station_id)
+        graph.remove_edge(violation_station_id, max_station_successor_id)
+        graph.remove_edge(target_station_predecessor_id, target_station_id)
+        graph.remove_edge(target_station_id, target_station_successor_id)
+
+        graph.add_edge(max_station_predecessor_id, target_station_id)
+        graph.add_edge(target_station_id, max_station_successor_id)
+        graph.add_edge(target_station_predecessor_id, violation_station_id)
+        graph.add_edge(violation_station_id, target_station_successor_id)
 
     graph.take_snapshot(f"Après échange (nouvelle charge à vérifier)", [], None)
 
@@ -130,7 +156,7 @@ def choice(graph: SolvingStationGraph, station_id: int, station_load: int, vehic
         station_load += cursor.bike_gap()
 
         if 0 <= station_load <= vehicle_capacity:
-            if math.copysign(station.bike_gap(), cursor.bike_gap()) == -1:
+            if station.bike_gap()*cursor.bike_gap() < 0:
                 return cursor_id
 
         cursor_id = graph.get_successor(cursor_id)
@@ -148,9 +174,12 @@ def method1(graph: SolvingStationGraph, vehicle_capacity: int, alpha: int):
     :return: Créer un chemin optimale dans le graphe
     """
     create_path(graph, vehicle_capacity, alpha)
-    N=0
-    while not loop(graph, vehicle_capacity) and N < 1000:
-        N+=1
+    n=0
+    while not loop(graph, vehicle_capacity) and n < 1000:
+        n+=1
+
+    if n >= 1000:
+        print("⚠️  ATTENTION: Limite d'itérations atteinte, la solution peut être infaisable!")
 
 
 def test_method1():
@@ -163,7 +192,7 @@ def test_method1():
 
     # Paramètres
     vehicle_capacity = 20  # Capacité du camion
-    alpha = 0 # Paramètre d'optimisation
+    alpha = 10 # Paramètre d'optimisation
 
     # Création du dépôt (station 0)
     depot = Station(0, "Dépôt", 50, "1 Rue du Dépôt", -1.5536, 47.2173)

@@ -145,28 +145,47 @@ class SolvingStationGraph:
         self.snapshots = []
 
 
-def animate_graph(graph: SolvingStationGraph, output_file: str = "algorithm_animation", interval: int = 1000, save_gif: bool = True):
+def animate_graph(graph: SolvingStationGraph, output_file: str = "algorithm_animation", interval: int = 1000, save_gif: bool = True, max_snapshots: int = None):
     """
     Créer une animation du graphe
     :param graph: Le graphe à animer
     :param output_file: Nom du fichier de sortie (sans extension)
     :param interval: Intervalle entre les frames en ms
     :param save_gif: Si True, sauvegarde l'animation en GIF, sinon l'affiche
+    :param max_snapshots: Si spécifié, ne garde que max_snapshots frames (échantillonnage)
     :return:
     """
 
     if not graph.snapshots:
         raise Exception("No snapshots recorded. Use take_snapshot() during your algorithm.")
 
-    fig, ax = plt.subplots(figsize=(12, 8))
+    # Échantillonnage des snapshots si trop nombreux
+    snapshots = graph.snapshots
+    if max_snapshots and len(snapshots) > max_snapshots:
+        step = len(snapshots) // max_snapshots
+        snapshots = [snapshots[i] for i in range(0, len(snapshots), step)]
+        # Toujours garder la dernière frame
+        if snapshots[-1] != graph.snapshots[-1]:
+            snapshots.append(graph.snapshots[-1])
+
+    fig, ax = plt.subplots(figsize=(12, 8), dpi=80)  # DPI réduit pour fichier plus léger
 
     pos = {}
     for station in graph.list_stations():
         pos[station.id] = (station.long, station.lat)
 
+    # Calculer les limites des axes une seule fois pour éviter le redimensionnement
+    all_x = [p[0] for p in pos.values()]
+    all_y = [p[1] for p in pos.values()]
+    margin = 0.02  # Marge de 2% autour des stations
+    x_margin = (max(all_x) - min(all_x)) * margin
+    y_margin = (max(all_y) - min(all_y)) * margin
+    xlim = (min(all_x) - x_margin, max(all_x) + x_margin)
+    ylim = (min(all_y) - y_margin, max(all_y) + y_margin)
+
     def draw_frame(frame_num):
         ax.clear()
-        snapshot = graph.snapshots[frame_num]
+        snapshot = snapshots[frame_num]
 
         G = nx.DiGraph()
         for sid in snapshot.station_map:
@@ -215,17 +234,41 @@ def animate_graph(graph: SolvingStationGraph, output_file: str = "algorithm_anim
             labels[sid] = f"{sid}\n{st.bike_gap()}"
         nx.draw_networkx_labels(G, pos, labels, font_size=10, font_weight='bold', ax=ax)
 
-        ax.set_title(f"Step {frame_num + 1}/{len(graph.snapshots)}: {snapshot.description}",
+        # Si deux stations sont highlightées, dessiner une flèche de permutation entre elles
+        if len(snapshot.highlighted_stations) == 2:
+            station1_id = snapshot.highlighted_stations[0]
+            station2_id = snapshot.highlighted_stations[1]
+
+            pos1 = pos[station1_id]
+            pos2 = pos[station2_id]
+
+            # Dessiner une flèche bidirectionnelle en pointillés pour montrer la permutation
+            ax.annotate('', xy=pos2, xytext=pos1,
+                       arrowprops=dict(arrowstyle='<->', color='orange', lw=3,
+                                     linestyle='--', alpha=0.7))
+
+            mid_x = (pos1[0] + pos2[0]) / 2
+            mid_y = (pos1[1] + pos2[1]) / 2
+            ax.text(mid_x, mid_y, '<>', fontsize=12, fontweight='bold',
+                   color='orange', ha='center', va='center',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='orange', lw=2))
+
+        ax.set_title(f"Step {frame_num + 1}/{len(snapshots)}: {snapshot.description}",
                     fontsize=14, fontweight='bold')
 
+        # Fixer les limites des axes pour éviter que les nœuds bougent
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
         ax.axis('off')
 
-    anim = animation.FuncAnimation(fig, draw_frame, frames=len(graph.snapshots),
+    anim = animation.FuncAnimation(fig, draw_frame, frames=len(snapshots),
                                   interval=interval, repeat=True)
 
     if save_gif:
-        anim.save(output_file + ".gif", writer='pillow', fps=1000//interval)
-        print(f"Animation saved to {output_file}.gif")
+        # Utiliser un writer optimisé
+        print(f"Génération de l'animation ({len(snapshots)} frames)...")
+        anim.save(output_file + ".gif", writer='pillow', fps=1000//interval, dpi=80)
+        print(f"Animation sauvegarde dans {output_file}.gif")
     else:
         plt.show()
 
