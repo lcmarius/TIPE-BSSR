@@ -13,15 +13,9 @@ def method1(graph: SolvingStationGraph, vehicle_capacity: int):
     """
     graph.take_snapshot("État initial", [], None)
 
-    stations = graph.list_stations()
-    loading_stations: list[TargetedStation] = []
-    for station in stations:
-        if station.is_loading():
-            loading_stations.append(station)
-
     vehicle_load: int = 0
 
-    cursor_station: TargetedStation = loading_stations[random.randint(0, len(loading_stations) - 1)]
+    cursor_station: TargetedStation = graph.get_nearest_neighbor(0, lambda s: s.id != 0 and s.is_loading())
     graph.add_edge(0, cursor_station.id)
     vehicle_load += cursor_station.bike_gap()
     graph.take_snapshot(f"Première station: {cursor_station.name} (charge: {vehicle_load})",

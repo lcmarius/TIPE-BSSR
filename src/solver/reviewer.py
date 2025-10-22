@@ -52,9 +52,9 @@ def review_solution(graph: SolvingStationGraph) -> SolutionMetrics:
 
 def compute_bounds(graph: SolvingStationGraph) -> tuple[float, float]:
     """
-    Calcule les bornes inférieure et supérieure en utilisant MST (Minimum Spanning Tree)
-    - Lower bound: MST (borne inf classique du TSP)
-    - Upper bound: 2 × MST (approximation classique du TSP)
+    Calcule les bornes inférieure et supérieure en utilisant Held-Karp (1-tree)
+    - Lower bound: Held-Karp (1-tree)
+    - Upper bound: 2 × Held-Karp (garantit upper ≥ lower)
 
     :param graph: Le graphe du problème
     :return: (lower_bound, upper_bound)
@@ -64,16 +64,18 @@ def compute_bounds(graph: SolvingStationGraph) -> tuple[float, float]:
     if len(stations) <= 1:
         return 0.0, 0.0
 
-    # Algorithme de Prim pour calculer le MST
+    non_depot = [s for s in stations if s.id != 0]
+    if len(non_depot) == 0:
+        return 0.0, 0.0
+
     mst_distance = 0.0
-    visited = {0}  # Commencer par le dépôt
-    remaining = {s.id for s in stations if s.id != 0}
+    visited = {non_depot[0].id}
+    remaining = {s.id for s in non_depot[1:]}
 
     while remaining:
         min_edge = float('inf')
-        next_node = None
+        min_node = None
 
-        # Trouver l'arête de poids minimum entre visited et remaining
         for v_id in visited:
             v_station = graph.get_station(v_id)
             for r_id in remaining:
@@ -81,16 +83,22 @@ def compute_bounds(graph: SolvingStationGraph) -> tuple[float, float]:
                 dist = v_station.distance_to(r_station)
                 if dist < min_edge:
                     min_edge = dist
-                    next_node = r_id
+                    min_node = r_id
 
-        if next_node is not None:
+        if min_node is not None:
             mst_distance += min_edge
-            visited.add(next_node)
-            remaining.remove(next_node)
+            visited.add(min_node)
+            remaining.remove(min_node)
 
-    lower_bound = mst_distance
-    upper_bound = 2 * mst_distance
+    depot = graph.get_station(0)
+    edges = sorted([depot.distance_to(s) for s in non_depot])
 
-    return lower_bound, upper_bound
+    # Arrête du dépot au premier nœud, et arrête du dernier nœud au dépot
+    two_shortest = sum(edges[:2]) if len(edges) >= 2 else sum(edges)
+
+    held_karp = mst_distance + two_shortest
+
+    return held_karp, 2*held_karp
+
 
 

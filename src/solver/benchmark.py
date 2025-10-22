@@ -452,7 +452,7 @@ def run_benchmarks():
     n_stations = 20
     vehicle_capacity = 15
     num_problems = 10
-    base_seed = 4978
+    base_seed = 9894
 
     print("\n" + "=" * 100)
     print("🚀 Lancement des benchmarks en parallèle...")
