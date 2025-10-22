@@ -1,3 +1,7 @@
+"""
+Amélioration de solution OPT-2
+"""
+
 from src.solver.graph import SolvingStationGraph
 
 def opt2(graph: SolvingStationGraph, vehicle_capacity: int, max_iterations: int = 1000):

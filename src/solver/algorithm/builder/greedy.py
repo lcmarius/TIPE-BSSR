@@ -1,3 +1,8 @@
+"""
+Méthode 1 de l'étude : Construction gloutonne faisable
+"""
+
+
 import random
 
 from src.objects.station import TargetedStation, Station
