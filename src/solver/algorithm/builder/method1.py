@@ -10,7 +10,7 @@ from src.solver.graph import SolvingStationGraph
 from src.solver.graph_viewer import GraphSnapshot
 
 
-def greedy(graph: SolvingStationGraph, vehicle_capacity: int):
+def method1(graph: SolvingStationGraph, vehicle_capacity: int):
     """
     Méthode de création de chemin faisable par approche gloutonne
     :param graph: Le graphe du problème

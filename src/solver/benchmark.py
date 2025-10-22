@@ -4,7 +4,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Dict, List
 
 from src.objects.station import TargetedStation, Station
-from src.solver.algorithm.builder.greedy import method1
+from src.solver.algorithm.builder.method1 import method1
+from src.solver.algorithm.improver.alns import alns
 from src.solver.algorithm.improver.opt2 import opt2
 from src.solver.algorithm.improver.opt3 import opt3
 from src.solver.graph import SolvingStationGraph
@@ -137,17 +138,34 @@ def run_benchmark(
 
 
 def method1_only(graph: SolvingStationGraph, vehicle_capacity: int):
-    """Méthode 1 greedy seule"""
+    """method1 seule"""
     method1(graph, vehicle_capacity)
 
 def method1_with_opt2(graph: SolvingStationGraph, vehicle_capacity: int):
-    """Méthode 1 greedy + 2-opt"""
+    """method1 + 2-opt"""
     method1(graph, vehicle_capacity)
     opt2(graph, vehicle_capacity)
 
 def method1_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
-    """Méthode 1 greedy + 2-opt + 3-opt"""
+    """method1 + 2-opt + 3-opt"""
     method1(graph, vehicle_capacity)
+    opt2(graph, vehicle_capacity)
+    opt3(graph, vehicle_capacity)
+
+def method1_with_alns(graph: SolvingStationGraph, vehicle_capacity: int):
+    """method1 + ALNS"""
+    method1(graph, vehicle_capacity)
+    alns(graph, vehicle_capacity, removal_size=3)
+
+def method1_with_opt2_then_opt3_with_alns(graph: SolvingStationGraph, vehicle_capacity: int):
+    method1(graph, vehicle_capacity)
+    opt2(graph, vehicle_capacity)
+    opt3(graph, vehicle_capacity)
+    alns(graph, vehicle_capacity, removal_size=3)
+
+def method1_with_alns_then_opt2_with_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
+    method1(graph, vehicle_capacity)
+    alns(graph, vehicle_capacity, removal_size=3)
     opt2(graph, vehicle_capacity)
     opt3(graph, vehicle_capacity)
 
@@ -381,7 +399,7 @@ def print_category_results(category_name: str, results: Dict[str, BenchmarkResul
         print(f"\n  🏆 Meilleur: {best_algo[0]} (gap moyen: {best_algo[1].avg_gap():.2f}%)")
 
 
-def print_global_summary(all_results: Dict[str, Dict[str, BenchmarkResult]], num_problems: int):
+def print_global_summary(all_results: Dict[str, Dict[str, BenchmarkResult]]):
     """Affiche le bilan global sur toutes les catégories"""
     print("\n" + "=" * 110)
     print("🏆 BILAN GLOBAL (moyenne sur toutes les catégories)")
@@ -429,10 +447,16 @@ def print_global_summary(all_results: Dict[str, Dict[str, BenchmarkResult]], num
 def run_benchmarks():
     """Lance les benchmarks sur plusieurs catégories en parallèle et affiche les résultats"""
     algorithms = {
-        "Method1 (greedy)": method1_only,
-        "Method1 + 2-opt": method1_with_opt2,
-        "Method1 + 2-opt + 3-opt": method1_with_opt2_then_opt3
+        "method1": method1_only,
+        # "method1 + 2-opt": method1_with_opt2,
+        # "method1 + 2-opt + 3-opt": method1_with_opt2_then_opt3,
     }
+
+    """
+    TODO: Faire en sorte que le method1 puisse quand même générer des chemins infaisables,
+    mais que l'on "répare" ensuite (dans le même algo) ---> on réimplémente réellement la logique de la méthode 1
+    VOir si l'ALNS est vrm pertinent ou non surtout en cluster ! On pourra voir si il existe d'autres méthodes plus simples et plus efficaces.
+    """
 
     categories = {
         "Random Uniform": generate_random_instance,
@@ -441,10 +465,10 @@ def run_benchmarks():
         "Tight Capacity": generate_tight_capacity_instance,
     }
 
-    n_stations = 20
+    n_stations = 50
     vehicle_capacity = 15
-    num_problems = 10
-    base_seed = 45
+    num_problems = 5
+    base_seed = 98
 
     print("\n" + "=" * 100)
     print("🚀 Lancement des benchmarks en parallèle...")
@@ -460,7 +484,7 @@ def run_benchmarks():
             vehicle_capacity=vehicle_capacity,
             num_problems=num_problems,
             base_seed=base_seed,
-            verbose=False,
+            verbose=True,
             max_workers=4
         )
 
@@ -480,7 +504,7 @@ def run_benchmarks():
         if category_name in all_results:
             print_category_results(category_name, all_results[category_name], num_problems)
 
-    print_global_summary(all_results, num_problems)
+    print_global_summary(all_results)
 
 
 if __name__ == "__main__":
