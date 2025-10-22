@@ -1,39 +1,24 @@
 from typing import Dict, List, Tuple, Optional
 from src.objects.station import TargetedStation, Station
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import networkx as nx
-import copy
-
-
-class GraphSnapshot:
-    """Snapshot of a graph state for animation"""
-    def __init__(self, stations: Dict[int, int|None], station_map: Dict[int, TargetedStation],
-                 description: str = "", highlighted_stations: List[int] = None,
-                 highlighted_edge: Tuple[int, int] = None):
-        self.stations = copy.deepcopy(stations)
-        self.station_map = copy.deepcopy(station_map)
-        self.description = description
-        self.highlighted_stations = highlighted_stations or []
-        self.highlighted_edge = highlighted_edge
 
 
 class SolvingStationGraph:
     """Directed unweighted graph for Station solving"""
 
     def __init__(self, depot_station: Station):
-        self.stations: Dict[int, int|None] = {}  # station_id -> [neighbor_ids]
+        self.successors: Dict[int, int | None] = {}  # station_id -> [successor_station_id | None]
+        self.predecessors: Dict[int, int | None] = {}  # station_id -> [predecessor_station_id | None]
         self.station_map: Dict[int, TargetedStation] = {}  # station_id -> Station object
-        self.snapshots: List[GraphSnapshot] = []  # For animation
 
         assert depot_station.id == 0, "Depot must have id 0"
         self.add_station(TargetedStation.from_station(depot_station, 0, 0))
 
     def has_station(self, station_id: int) -> bool:
-        return station_id in self.stations
+        return station_id in self.successors
 
     def add_station(self, station: TargetedStation) -> None:
-        self.stations[station.id] = None
+        self.successors[station.id] = None
+        self.predecessors[station.id] = None
         self.station_map[station.id] = station
 
     def get_station(self, station_id: int) -> TargetedStation:
@@ -46,8 +31,8 @@ class SolvingStationGraph:
 
     def list_edges(self) -> List[Tuple[int, int]]:
         edges = []
-        for station_id in self.stations:
-            neighbor = self.stations[station_id]
+        for station_id in self.successors:
+            neighbor = self.successors[station_id]
             if neighbor is not None:
                 edges.append((station_id, neighbor))
         return edges
@@ -56,17 +41,25 @@ class SolvingStationGraph:
         if not self.has_station(station_id):
             raise Exception(f"Station {station_id} does not exist")
 
-        for sid in self.stations:
-            if station_id == self.stations[sid]:
-                self.stations[sid] = None
-        del self.stations[station_id]
+        # Remove edges where this station is the successor
+        for sid in self.successors:
+            if station_id == self.successors[sid]:
+                self.successors[sid] = None
+
+        # Remove edges where this station is the predecessor
+        for sid in self.predecessors:
+            if station_id == self.predecessors[sid]:
+                self.predecessors[sid] = None
+
+        del self.successors[station_id]
+        del self.predecessors[station_id]
         del self.station_map[station_id]
 
     def size(self) -> int:
-        return len(self.stations)
+        return len(self.successors)
 
     def has_edge(self, station_id1: int, station_id2: int) -> bool:
-        return self.has_station(station_id1) and station_id2 == self.stations[station_id1]
+        return self.has_station(station_id1) and station_id2 == self.successors[station_id1]
 
     def add_edge(self, station_id1: int, station_id2: int) -> None:
         if not self.has_station(station_id1):
@@ -78,13 +71,15 @@ class SolvingStationGraph:
         if self.has_edge(station_id1, station_id2):
             raise Exception(f"Edge {station_id1} -> {station_id2} already exists")
 
-        self.stations[station_id1] = station_id2
+        self.successors[station_id1] = station_id2
+        self.predecessors[station_id2] = station_id1
 
     def remove_edge(self, station_id1: int, station_id2: int) -> None:
         if not self.has_edge(station_id1, station_id2):
             raise Exception(f"Edge {station_id1} -> {station_id2} does not exist")
 
-        self.stations[station_id1] = None
+        self.successors[station_id1] = None
+        self.predecessors[station_id2] = None
 
     def is_connex(self):
         return len(self.list_edges()) == self.size() - 1
@@ -92,17 +87,13 @@ class SolvingStationGraph:
     def get_successor(self, station_id: int) -> int | None:
         if not self.has_station(station_id):
             raise Exception(f"Station {station_id} does not exist")
-        return self.stations[station_id]
+        return self.successors[station_id]
 
     def get_predecessor(self, station_id: int) -> int | None:
         if not self.has_station(station_id):
             raise Exception(f"Station {station_id} does not exist")
 
-        for sid in self.stations:
-            if self.stations[sid] == station_id:
-                return sid
-
-        return None
+        return self.predecessors[station_id]
 
     def get_nearest_neighbor(self, station_id: int, condition) -> TargetedStation | None:
         """
@@ -142,219 +133,6 @@ class SolvingStationGraph:
             current_id = self.get_successor(current_id)
 
         return turn
-
-    def take_snapshot(self, description: str = "", highlighted_stations: List[int] = None,
-                     highlighted_edge: Tuple[int, int] = None):
-        """
-        Capture l'état actuel du graphe pour l'animation
-        :param description: Information textuelle sur l'état actuel
-        :param highlighted_stations: Liste des stations à mettre en évidence
-        :param highlighted_edge: Arête à mettre en évidence (station_id1, station_id2)
-        :return:
-        """
-        snapshot = GraphSnapshot(self.stations, self.station_map, description,
-                                highlighted_stations, highlighted_edge)
-        self.snapshots.append(snapshot)
-
-    def clear_snapshots(self) -> None:
-        """Efface toutes les captures"""
-        self.snapshots = []
-
-
-def animate_graph(graph: SolvingStationGraph, output_file: str = "algorithm_animation", interval: int = 1000, save_gif: bool = True, max_snapshots: int = None):
-    """
-    Créer une animation du graphe
-    :param graph: Le graphe à animer
-    :param output_file: Nom du fichier de sortie (sans extension)
-    :param interval: Intervalle entre les frames en ms
-    :param save_gif: Si True, sauvegarde l'animation en GIF, sinon l'affiche
-    :param max_snapshots: Si spécifié, ne garde que max_snapshots frames (échantillonnage)
-    :return:
-    """
-
-    if not graph.snapshots:
-        raise Exception("No snapshots recorded. Use take_snapshot() during your algorithm.")
-
-    # Échantillonnage des snapshots si trop nombreux
-    snapshots = graph.snapshots
-    if max_snapshots and len(snapshots) > max_snapshots:
-        step = len(snapshots) // max_snapshots
-        snapshots = [snapshots[i] for i in range(0, len(snapshots), step)]
-        # Toujours garder la dernière frame
-        if snapshots[-1] != graph.snapshots[-1]:
-            snapshots.append(graph.snapshots[-1])
-
-    fig, ax = plt.subplots(figsize=(12, 8), dpi=80)  # DPI réduit pour fichier plus léger
-
-    pos = {}
-    for station in graph.list_stations():
-        pos[station.id] = (station.long, station.lat)
-
-    # Calculer les limites des axes une seule fois pour éviter le redimensionnement
-    all_x = [p[0] for p in pos.values()]
-    all_y = [p[1] for p in pos.values()]
-    margin = 0.02  # Marge de 2% autour des stations
-    x_margin = (max(all_x) - min(all_x)) * margin
-    y_margin = (max(all_y) - min(all_y)) * margin
-    xlim = (min(all_x) - x_margin, max(all_x) + x_margin)
-    ylim = (min(all_y) - y_margin, max(all_y) + y_margin)
-
-    def draw_frame(frame_num):
-        ax.clear()
-        snapshot = snapshots[frame_num]
-
-        G = nx.DiGraph()
-        for sid in snapshot.station_map:
-            G.add_node(sid)
-        for sid, neighbor in snapshot.stations.items():
-            if neighbor is not None:
-                G.add_edge(sid, neighbor)
-
-        node_colors = []
-        edge_colors_nodes = []
-        linewidths = []
-
-        for node in G.nodes():
-            # Couleur de fond selon le gap
-            gap = snapshot.station_map[node].bike_gap()
-            if gap > 0:
-                node_colors.append('lightgreen')  # Excès de vélos
-            elif gap < 0:
-                node_colors.append('lightcoral')  # Déficit de vélos
-            else:
-                node_colors.append('lightblue')  # Équilibré
-
-            if node in snapshot.highlighted_stations:
-                edge_colors_nodes.append('red')
-                linewidths.append(2)
-            else:
-                edge_colors_nodes.append('none')
-                linewidths.append(0)
-
-        nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=700,
-                              ax=ax, node_shape='s', edgecolors=edge_colors_nodes,
-                              linewidths=linewidths)
-
-        edge_colors = []
-        for edge in G.edges():
-            if snapshot.highlighted_edge == edge:
-                edge_colors.append('red')
-            else:
-                edge_colors.append('black')
-
-        nx.draw_networkx_edges(G, pos, edge_color=edge_colors, arrows=True,
-                              arrowsize=20, width=2, ax=ax)
-
-        labels = {}
-        for sid, st in snapshot.station_map.items():
-            labels[sid] = f"{sid}\n{st.bike_gap()}"
-        nx.draw_networkx_labels(G, pos, labels, font_size=10, font_weight='bold', ax=ax)
-
-        # Si deux stations sont highlightées, dessiner une flèche de permutation entre elles
-        if len(snapshot.highlighted_stations) == 2:
-            station1_id = snapshot.highlighted_stations[0]
-            station2_id = snapshot.highlighted_stations[1]
-
-            pos1 = pos[station1_id]
-            pos2 = pos[station2_id]
-
-            # Dessiner une flèche bidirectionnelle en pointillés pour montrer la permutation
-            ax.annotate('', xy=pos2, xytext=pos1,
-                       arrowprops=dict(arrowstyle='<->', color='orange', lw=3,
-                                     linestyle='--', alpha=0.7))
-
-            mid_x = (pos1[0] + pos2[0]) / 2
-            mid_y = (pos1[1] + pos2[1]) / 2
-            ax.text(mid_x, mid_y, '<>', fontsize=12, fontweight='bold',
-                   color='orange', ha='center', va='center',
-                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='orange', lw=2))
-
-        ax.set_title(f"Step {frame_num + 1}/{len(snapshots)}: {snapshot.description}",
-                    fontsize=14, fontweight='bold')
-
-        # Fixer les limites des axes pour éviter que les nœuds bougent
-        ax.set_xlim(xlim)
-        ax.set_ylim(ylim)
-        ax.axis('off')
-
-    anim = animation.FuncAnimation(fig, draw_frame, frames=len(snapshots),
-                                  interval=interval, repeat=True)
-
-    if save_gif:
-        # Utiliser un writer optimisé
-        print(f"Génération de l'animation ({len(snapshots)} frames)...")
-        anim.save(output_file + ".gif", writer='pillow', fps=1000//interval, dpi=80)
-        print(f"Animation sauvegarde dans {output_file}.gif")
-    else:
-        plt.show()
-
-    plt.close()
-
-
-def save_final_solution(graph: SolvingStationGraph, output_file: str = "solution.png"):
-    """
-    Sauvegarde une image PNG de la solution finale
-    :param graph: Le graphe avec la solution
-    :param output_file: Nom du fichier de sortie
-    """
-    if not graph.snapshots:
-        raise Exception("No snapshots recorded.")
-
-    fig, ax = plt.subplots(figsize=(12, 8), dpi=150)
-
-    # Utiliser la dernière snapshot (solution finale)
-    snapshot = graph.snapshots[-1]
-
-    pos = {}
-    for station in graph.list_stations():
-        pos[station.id] = (station.long, station.lat)
-
-    # Calculer les limites des axes
-    all_x = [p[0] for p in pos.values()]
-    all_y = [p[1] for p in pos.values()]
-    margin = 0.02
-    x_margin = (max(all_x) - min(all_x)) * margin
-    y_margin = (max(all_y) - min(all_y)) * margin
-    xlim = (min(all_x) - x_margin, max(all_x) + x_margin)
-    ylim = (min(all_y) - y_margin, max(all_y) + y_margin)
-
-    G = nx.DiGraph()
-    for sid in snapshot.station_map:
-        G.add_node(sid)
-    for sid, neighbor in snapshot.stations.items():
-        if neighbor is not None:
-            G.add_edge(sid, neighbor)
-
-    node_colors = []
-    for node in G.nodes():
-        gap = snapshot.station_map[node].bike_gap()
-        if gap > 0:
-            node_colors.append('lightgreen')
-        elif gap < 0:
-            node_colors.append('lightcoral')
-        else:
-            node_colors.append('lightblue')
-
-    nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=700,
-                          ax=ax, node_shape='s')
-
-    nx.draw_networkx_edges(G, pos, edge_color='black', arrows=True,
-                          arrowsize=20, width=2, ax=ax)
-
-    labels = {}
-    for sid, st in snapshot.station_map.items():
-        labels[sid] = f"{sid}\n{st.bike_gap()}"
-    nx.draw_networkx_labels(G, pos, labels, font_size=10, font_weight='bold', ax=ax)
-
-    ax.set_title("Solution finale", fontsize=16, fontweight='bold')
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    ax.axis('off')
-
-    plt.tight_layout()
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    plt.close()
-
 
 def test():
     s0 = Station(0, "Station init", 1, "Addr 1", -1.5, 47.2)
