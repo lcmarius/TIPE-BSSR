@@ -1,5 +1,5 @@
 from src.solver.graph import SolvingStationGraph
-from src.solver.algorithm.opt2 import is_turn_feasible, apply_turn
+from src.solver.algorithm.improver.opt2 import is_turn_feasible, apply_turn
 
 
 def opt3(graph: SolvingStationGraph, vehicle_capacity: int, max_iterations: int = 1000):
