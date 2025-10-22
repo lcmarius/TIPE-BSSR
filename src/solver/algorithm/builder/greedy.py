@@ -5,9 +5,9 @@ from src.solver.graph import SolvingStationGraph
 from src.solver.graph_viewer import GraphSnapshot
 
 
-def method1(graph: SolvingStationGraph, vehicle_capacity: int):
+def greedy(graph: SolvingStationGraph, vehicle_capacity: int):
     """
-    Méthode 1 simplifiée : Construction greedy faisable
+    Méthode de création de chemin faisable par approche gloutonne
     :param graph: Le graphe du problème
     :param vehicle_capacity: Capacité du camion
     :return: Créer un chemin faisable dans le graphe

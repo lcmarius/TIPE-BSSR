@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Dict, List
 
 from src.objects.station import TargetedStation, Station
-from src.solver.algorithm.builder.method1 import method1
+from src.solver.algorithm.builder.greedy import method1
 from src.solver.algorithm.improver.opt2 import opt2
 from src.solver.algorithm.improver.opt3 import opt3
 from src.solver.graph import SolvingStationGraph
@@ -140,17 +140,10 @@ def method1_only(graph: SolvingStationGraph, vehicle_capacity: int):
     """Méthode 1 greedy seule"""
     method1(graph, vehicle_capacity)
 
-
 def method1_with_opt2(graph: SolvingStationGraph, vehicle_capacity: int):
     """Méthode 1 greedy + 2-opt"""
     method1(graph, vehicle_capacity)
     opt2(graph, vehicle_capacity)
-
-def method1_with_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
-    """Méthode 1 greedy + 3-opt"""
-    method1(graph, vehicle_capacity)
-    opt3(graph, vehicle_capacity)
-
 
 def method1_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
     """Méthode 1 greedy + 2-opt + 3-opt"""
@@ -438,8 +431,7 @@ def run_benchmarks():
     algorithms = {
         "Method1 (greedy)": method1_only,
         "Method1 + 2-opt": method1_with_opt2,
-        "Method1 + 3-opt": method1_with_opt3,
-        "Method1 + 2-opt + 3-opt": method1_with_opt2_then_opt3,
+        "Method1 + 2-opt + 3-opt": method1_with_opt2_then_opt3
     }
 
     categories = {
@@ -452,7 +444,7 @@ def run_benchmarks():
     n_stations = 20
     vehicle_capacity = 15
     num_problems = 10
-    base_seed = 9894
+    base_seed = 45
 
     print("\n" + "=" * 100)
     print("🚀 Lancement des benchmarks en parallèle...")

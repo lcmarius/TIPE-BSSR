@@ -1,4 +1,6 @@
 from typing import Dict, List, Tuple, Optional
+
+
 from src.objects.station import TargetedStation, Station
 
 
@@ -106,17 +108,14 @@ class SolvingStationGraph:
             raise Exception(f"Station {station_id} does not exist")
 
         reference_station = self.get_station(station_id)
-        nearest_station = None
-        min_distance = float('inf')
 
-        for candidate in self.list_stations():
-            if candidate.id != station_id and condition(candidate):
-                distance = reference_station.distance_to(candidate)
-                if distance < min_distance:
-                    min_distance = distance
-                    nearest_station = candidate
+        candidates = [
+            (reference_station.distance_to(s), s)
+            for s in self.list_stations()
+            if s.id != station_id and condition(s)
+        ]
 
-        return nearest_station
+        return min(candidates, key=lambda x: x[0])[1] if candidates else None
 
     def get_turn(self) -> list[int]:
         """

@@ -38,7 +38,7 @@ def opt3(graph: SolvingStationGraph, vehicle_capacity: int, max_iterations: int 
                 for k in range(j + 2, n - 1):
                     reconnections = generate_3opt_reconnections(turn, i, j, k)
 
-                    # Chercher la meilleure reconnexion parmi les 7
+                    # Chercher la meilleure permutation parmi les 7.
                     best_turn = None
                     best_dist = current_total_dist
 
@@ -66,10 +66,10 @@ def generate_3opt_reconnections(tour: list[int], i: int, j: int, k: int) -> list
     Génère les 7 reconnexions possibles pour 3-opt
 
     On a 4 segments:
-    - A = tour[0:i+1]      (jusqu'à i inclus)
-    - B = tour[i+1:j+1]    (de i+1 à j inclus)
-    - C = tour[j+1:k+1]    (de j+1 à k inclus)
-    - D = tour[k+1:]       (de k+1 à la fin)
+    - A = tour[0:i+1]   (jusqu'à i inclus)
+    - B = tour[i+1:j+1] (de i+1 à j inclus)
+    - C = tour[j+1:k+1] (de j+1 à k inclus)
+    - D = tour[k+1:]    (de k+1 à la fin)
 
     Tour original: A-B-C-D
 
@@ -86,23 +86,23 @@ def generate_3opt_reconnections(tour: list[int], i: int, j: int, k: int) -> list
     :param i: Index de fin du segment A
     :param j: Index de fin du segment B
     :param k: Index de fin du segment C
-    :return: Liste des 7 reconnexions possibles
+    :return: Liste des sept reconnexions possibles.
     """
     # Extraire les 4 segments
-    A = tour[0:i+1]
-    B = tour[i+1:j+1]
-    C = tour[j+1:k+1]
-    D = tour[k+1:]
+    a = tour[0:i+1]
+    b = tour[i+1:j+1]
+    c = tour[j+1:k+1]
+    d = tour[k+1:]
 
     # Les 7 reconnexions possibles
     reconnections = [
-        A + B + C[::-1] + D,           # 1. Inverse C (2-opt)
-        A + B[::-1] + C + D,           # 2. Inverse B (2-opt)
-        A + C + B + D,                 # 3. Swap B et C
-        A + C[::-1] + B + D,           # 4. Inverse C puis swap
-        A + C + B[::-1] + D,           # 5. Swap puis inverse B
-        A + B[::-1] + C[::-1] + D,     # 6. Inverse B et C
-        A + C[::-1] + B[::-1] + D,     # 7. Inverse tout puis swap
+        a + b + c[::-1] + d,           # 1. Inverse C (2-opt)
+        a + b[::-1] + c + d,           # 2. Inverse B (2-opt)
+        a + c + b + d,                 # 3. Swap B et C
+        a + c[::-1] + b + d,           # 4. Inverse C puis swap
+        a + c + b[::-1] + d,           # 5. Swap puis inverse B
+        a + b[::-1] + c[::-1] + d,     # 6. Inverse B et C
+        a + c[::-1] + b[::-1] + d,     # 7. Inverse tout puis swap
     ]
 
     return reconnections
