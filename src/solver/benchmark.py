@@ -5,11 +5,12 @@ from typing import Callable, Dict, List
 
 from src.objects.station import TargetedStation, Station
 from src.solver.algorithm.builder.method1 import method1
-from src.solver.algorithm.improver.alns import alns
+from src.solver.algorithm.builder.method3 import method3
 from src.solver.algorithm.improver.opt2 import opt2
 from src.solver.algorithm.improver.opt3 import opt3
 from src.solver.graph import SolvingStationGraph
 from src.solver.reviewer import review_solution, SolutionMetrics
+from src.solver.solver import is_graph_solvable
 
 
 class BenchmarkResult:
@@ -95,6 +96,7 @@ def run_benchmark(
         """Exécute un algorithme sur un problème donné"""
         try:
             graph, depot, stations = generator_func(n_stations, vehicle_capacity, seed)
+            assert is_graph_solvable(graph, vehicle_capacity), "Le graphe généré n'est pas solvable (seed: %s)" % seed
 
             start_time = time.time()
             algo_func(graph, vehicle_capacity)
@@ -152,23 +154,6 @@ def method1_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: in
     opt2(graph, vehicle_capacity)
     opt3(graph, vehicle_capacity)
 
-def method1_with_alns(graph: SolvingStationGraph, vehicle_capacity: int):
-    """method1 + ALNS"""
-    method1(graph, vehicle_capacity)
-    alns(graph, vehicle_capacity, removal_size=3)
-
-def method1_with_opt2_then_opt3_with_alns(graph: SolvingStationGraph, vehicle_capacity: int):
-    method1(graph, vehicle_capacity)
-    opt2(graph, vehicle_capacity)
-    opt3(graph, vehicle_capacity)
-    alns(graph, vehicle_capacity, removal_size=3)
-
-def method1_with_alns_then_opt2_with_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
-    method1(graph, vehicle_capacity)
-    alns(graph, vehicle_capacity, removal_size=3)
-    opt2(graph, vehicle_capacity)
-    opt3(graph, vehicle_capacity)
-
 def generate_random_instance(n_stations: int, vehicle_capacity: int, seed: int = None):
     """
     Génère une instance aléatoire uniforme
@@ -181,19 +166,45 @@ def generate_random_instance(n_stations: int, vehicle_capacity: int, seed: int =
         random.seed(seed)
 
     depot = Station(0, "Dépôt", 50, "Centre", -1.5536, 47.2173)
-    max_gap = vehicle_capacity // 2 - 1
+    max_gap = vehicle_capacity // 2
     stations = []
     bike_gaps = []
 
-    for i in range(n_stations):
+    # Générer n-1 gaps aléatoires
+    for i in range(n_stations - 1):
         if i % 2 == 0:
             gap = random.randint(1, max_gap)
         else:
             gap = random.randint(-max_gap, -1)
         bike_gaps.append(gap)
 
+    # Le dernier gap est calculé pour que la somme = 0
     current_sum = sum(bike_gaps)
-    bike_gaps[-1] -= current_sum
+    last_gap = -current_sum
+
+    # Vérifier que le dernier gap respecte la contrainte |gap| <= max_gap
+    if abs(last_gap) > max_gap:
+        # Si violation, redistribuer en ajustant les gaps existants
+        excess = abs(last_gap) - max_gap
+        last_gap = max_gap if last_gap > 0 else -max_gap
+
+        # Distribuer l'excès sur les autres gaps
+        for i in range(len(bike_gaps)):
+            if bike_gaps[i] > 0 and last_gap < 0:
+                # Réduire les gaps positifs si last_gap est négatif
+                adjustment = min(excess, bike_gaps[i] - 1)
+                bike_gaps[i] -= adjustment
+                excess -= adjustment
+            elif bike_gaps[i] < 0 and last_gap > 0:
+                # Augmenter les gaps négatifs (les rendre moins négatifs) si last_gap est positif
+                adjustment = min(excess, abs(bike_gaps[i]) - 1)
+                bike_gaps[i] += adjustment
+                excess -= adjustment
+
+            if excess == 0:
+                break
+
+    bike_gaps.append(last_gap)
 
     for i in range(n_stations):
         long = depot.long + random.uniform(-0.05, 0.05)
@@ -218,6 +229,17 @@ def generate_random_instance(n_stations: int, vehicle_capacity: int, seed: int =
 
     return graph, depot, stations
 
+def method3_simple(graph: SolvingStationGraph, vehicle_capacity: int):
+    method3(graph, vehicle_capacity)
+
+def method3_with_opt2(graph: SolvingStationGraph, vehicle_capacity: int):
+    method3(graph, vehicle_capacity)
+    opt2(graph, vehicle_capacity)
+
+def method3_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
+    method3(graph, vehicle_capacity)
+    opt2(graph, vehicle_capacity)
+    opt3(graph, vehicle_capacity)
 
 def generate_clustered_instance(n_stations: int, vehicle_capacity: int, seed: int = None):
     """
@@ -228,7 +250,7 @@ def generate_clustered_instance(n_stations: int, vehicle_capacity: int, seed: in
         random.seed(seed)
 
     depot = Station(0, "Dépôt", 50, "Centre", -1.5536, 47.2173)
-    max_gap = vehicle_capacity // 2 - 1
+    max_gap = vehicle_capacity // 2
 
     # Créer 3 clusters autour du dépôt
     num_clusters = 3
@@ -241,11 +263,34 @@ def generate_clustered_instance(n_stations: int, vehicle_capacity: int, seed: in
     stations = []
     bike_gaps = []
 
-    for i in range(n_stations):
+    # Générer n-1 gaps aléatoires
+    for i in range(n_stations - 1):
         gap = random.randint(1, max_gap) if i % 2 == 0 else random.randint(-max_gap, -1)
         bike_gaps.append(gap)
 
-    bike_gaps[-1] -= sum(bike_gaps)
+    # Le dernier gap est calculé pour que la somme = 0
+    current_sum = sum(bike_gaps)
+    last_gap = -current_sum
+
+    # Vérifier que le dernier gap respecte la contrainte |gap| <= max_gap
+    if abs(last_gap) > max_gap:
+        excess = abs(last_gap) - max_gap
+        last_gap = max_gap if last_gap > 0 else -max_gap
+
+        for i in range(len(bike_gaps)):
+            if bike_gaps[i] > 0 and last_gap < 0:
+                adjustment = min(excess, bike_gaps[i] - 1)
+                bike_gaps[i] -= adjustment
+                excess -= adjustment
+            elif bike_gaps[i] < 0 and last_gap > 0:
+                adjustment = min(excess, abs(bike_gaps[i]) - 1)
+                bike_gaps[i] += adjustment
+                excess -= adjustment
+
+            if excess == 0:
+                break
+
+    bike_gaps.append(last_gap)
 
     for i in range(n_stations):
         # Assigner à un cluster
@@ -285,16 +330,39 @@ def generate_hub_spoke_instance(n_stations: int, vehicle_capacity: int, seed: in
         random.seed(seed)
 
     depot = Station(0, "Dépôt", 50, "Centre", -1.5536, 47.2173)
-    max_gap = vehicle_capacity // 2 - 1
+    max_gap = vehicle_capacity // 2
 
     stations = []
     bike_gaps = []
 
-    for i in range(n_stations):
+    # Générer n-1 gaps aléatoires
+    for i in range(n_stations - 1):
         gap = random.randint(1, max_gap) if i % 2 == 0 else random.randint(-max_gap, -1)
         bike_gaps.append(gap)
 
-    bike_gaps[-1] -= sum(bike_gaps)
+    # Le dernier gap est calculé pour que la somme = 0
+    current_sum = sum(bike_gaps)
+    last_gap = -current_sum
+
+    # Vérifier que le dernier gap respecte la contrainte |gap| <= max_gap
+    if abs(last_gap) > max_gap:
+        excess = abs(last_gap) - max_gap
+        last_gap = max_gap if last_gap > 0 else -max_gap
+
+        for i in range(len(bike_gaps)):
+            if bike_gaps[i] > 0 and last_gap < 0:
+                adjustment = min(excess, bike_gaps[i] - 1)
+                bike_gaps[i] -= adjustment
+                excess -= adjustment
+            elif bike_gaps[i] < 0 and last_gap > 0:
+                adjustment = min(excess, abs(bike_gaps[i]) - 1)
+                bike_gaps[i] += adjustment
+                excess -= adjustment
+
+            if excess == 0:
+                break
+
+    bike_gaps.append(last_gap)
 
     for i in range(n_stations):
         # 70% des stations proches du dépôt, 30% éloignées
@@ -336,20 +404,42 @@ def generate_tight_capacity_instance(n_stations: int, vehicle_capacity: int, see
         random.seed(seed)
 
     depot = Station(0, "Dépôt", 50, "Centre", -1.5536, 47.2173)
-    max_gap = vehicle_capacity // 2 - 1
+    max_gap = vehicle_capacity // 2
 
     stations = []
     bike_gaps = []
 
     # Créer des gaps proches de la limite (80-100% de max_gap)
-    for i in range(n_stations):
+    for i in range(n_stations - 1):
         if i % 2 == 0:
             gap = random.randint(int(max_gap * 0.8), max_gap)
         else:
             gap = random.randint(-max_gap, int(-max_gap * 0.8))
         bike_gaps.append(gap)
 
-    bike_gaps[-1] -= sum(bike_gaps)
+    # Le dernier gap est calculé pour que la somme = 0
+    current_sum = sum(bike_gaps)
+    last_gap = -current_sum
+
+    # Vérifier que le dernier gap respecte la contrainte |gap| <= max_gap
+    if abs(last_gap) > max_gap:
+        excess = abs(last_gap) - max_gap
+        last_gap = max_gap if last_gap > 0 else -max_gap
+
+        for i in range(len(bike_gaps)):
+            if bike_gaps[i] > 0 and last_gap < 0:
+                adjustment = min(excess, bike_gaps[i] - 1)
+                bike_gaps[i] -= adjustment
+                excess -= adjustment
+            elif bike_gaps[i] < 0 and last_gap > 0:
+                adjustment = min(excess, abs(bike_gaps[i]) - 1)
+                bike_gaps[i] += adjustment
+                excess -= adjustment
+
+            if excess == 0:
+                break
+
+    bike_gaps.append(last_gap)
 
     for i in range(n_stations):
         long = depot.long + random.uniform(-0.05, 0.05)
@@ -447,16 +537,13 @@ def print_global_summary(all_results: Dict[str, Dict[str, BenchmarkResult]]):
 def run_benchmarks():
     """Lance les benchmarks sur plusieurs catégories en parallèle et affiche les résultats"""
     algorithms = {
-        "method1": method1_only,
+        # "method1": method1_only,
         # "method1 + 2-opt": method1_with_opt2,
         # "method1 + 2-opt + 3-opt": method1_with_opt2_then_opt3,
+        # "method3": method3_simple,
+        # "method3 + 2-opt": method3_with_opt2,
+        "method3 + 2-opt + 3-opt": method3_with_opt2_then_opt3,
     }
-
-    """
-    TODO: Faire en sorte que le method1 puisse quand même générer des chemins infaisables,
-    mais que l'on "répare" ensuite (dans le même algo) ---> on réimplémente réellement la logique de la méthode 1
-    VOir si l'ALNS est vrm pertinent ou non surtout en cluster ! On pourra voir si il existe d'autres méthodes plus simples et plus efficaces.
-    """
 
     categories = {
         "Random Uniform": generate_random_instance,
@@ -465,10 +552,10 @@ def run_benchmarks():
         "Tight Capacity": generate_tight_capacity_instance,
     }
 
-    n_stations = 50
+    n_stations = 107
     vehicle_capacity = 15
-    num_problems = 5
-    base_seed = 98
+    num_problems = 1
+    base_seed = 48
 
     print("\n" + "=" * 100)
     print("🚀 Lancement des benchmarks en parallèle...")
