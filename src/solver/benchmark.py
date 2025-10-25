@@ -5,7 +5,8 @@ from typing import Callable, Dict, List
 
 from src.objects.station import TargetedStation, Station
 from src.solver.algorithm.builder.method1 import method1
-from src.solver.algorithm.builder.method3 import method3
+from src.solver.algorithm.builder.method3_test import method3
+
 from src.solver.algorithm.improver.opt2 import opt2
 from src.solver.algorithm.improver.opt3 import opt3
 from src.solver.graph import SolvingStationGraph
@@ -537,11 +538,11 @@ def print_global_summary(all_results: Dict[str, Dict[str, BenchmarkResult]]):
 def run_benchmarks():
     """Lance les benchmarks sur plusieurs catégories en parallèle et affiche les résultats"""
     algorithms = {
-        # "method1": method1_only,
-        # "method1 + 2-opt": method1_with_opt2,
-        # "method1 + 2-opt + 3-opt": method1_with_opt2_then_opt3,
-        # "method3": method3_simple,
-        # "method3 + 2-opt": method3_with_opt2,
+        "method1": method1_only,
+        "method1 + 2-opt": method1_with_opt2,
+        "method1 + 2-opt + 3-opt": method1_with_opt2_then_opt3,
+        "method3": method3_simple,
+        "method3 + 2-opt": method3_with_opt2,
         "method3 + 2-opt + 3-opt": method3_with_opt2_then_opt3,
     }
 
@@ -552,9 +553,9 @@ def run_benchmarks():
         "Tight Capacity": generate_tight_capacity_instance,
     }
 
-    n_stations = 107
+    n_stations = 20
     vehicle_capacity = 15
-    num_problems = 1
+    num_problems = 10
     base_seed = 48
 
     print("\n" + "=" * 100)
