@@ -56,10 +56,26 @@ class BiclooAPI:
 
         return response.json()
 
-
+# https://data.nantesmetropole.fr/explore/dataset/244400404_disponibilite-temps-reel-velos-libre-service-naolib-gbfs/table/?sort=-id
 #     gbfs/v3/station_information.json
 #     bikes
 #     bikes/{id}
+#statut vélo:
+# AVAILABLE
+# AVAILABLE_IN_STOCK
+# TO_BE_REPARED
+# NOT_RECOGNIZED
+# MAINTENANCE
+# STOLEN
+# DESTROYED
+# RENTED
+# REGULATION
+# SCRAPPED
+
+# En fonction du statut on le catalogue à un endroit spécifique. Il existe:
+# Le stockage: AVAIALBLE_IN_STOCK, TO_BE_REPARED,MAINTENANCE
+# En station (donc pour chaque station = un endroit): AVAILABLE
+# Perdus (poubelle): SCRAPPED, DESTROYED, STOLEN, NOT_RECOGNIZED
 
 def register_stations(bicloo_api: BiclooAPI) -> Dict[int, Station]:
     """Crée un dictionnaire de toutes les stations"""
