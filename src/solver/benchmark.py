@@ -5,7 +5,7 @@ from typing import Callable, Dict, List
 
 from src.objects.station import TargetedStation, Station
 from src.solver.algorithm.builder.method1 import method1
-from src.solver.algorithm.builder.method3_test import method3
+from src.solver.algorithm.builder.method3 import method3
 
 from src.solver.algorithm.improver.opt2 import opt2
 from src.solver.algorithm.improver.opt3 import opt3

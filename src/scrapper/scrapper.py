@@ -1,15 +1,21 @@
+import time
+
 import requests
 from typing import Dict, List, Optional
 
-from src.objects.station import Station, Bike
+from src.objects.bike import Bike
+from src.objects.station import Station
 
-class VeloAPI:
+class BiclooAPI:
     """Classe pour gérer les appels à l'API Bicloo"""
+
+    TOKEN_EXPIRES_IN = 30*60
 
     def __init__(self):
         self.base_url = "https://api.cyclocity.fr/contracts/nantes"
         self.auth_url = "https://api.cyclocity.fr/auth/environments/PRD/client_tokens"
         self.access_token = None
+        self.access_token_expires_at = None
         self.refresh_token = None
 
     def generate_token(self) -> bool:
@@ -21,66 +27,44 @@ class VeloAPI:
 
         response = requests.post(self.auth_url, json=payload)
         if response.status_code != 200:
-          raise Exception("Erreur lors de la génération du token d'authentification")
+          print("Response:", response.status_code, response.text)
+          return False
 
         data = response.json()
         self.access_token = data.get('accessToken')
         self.refresh_token = data.get('refreshToken')
+        self.access_token_expires_at = time.monotonic() + BiclooAPI.TOKEN_EXPIRES_IN
 
-    def get_headers(self) -> dict:
-        """Retourne les headers avec le token d'authentification"""
-        if not self.access_token:
+        return True
+
+    def get(self, endpoint: str, contentType : Optional[str] = None) -> Dict:
+        """Effectue une requête GET à l'API Bicloo"""
+        url = f"{self.base_url}/{endpoint}"
+
+        if not self.access_token or self.access_token_expires_at < time.monotonic():
             if not self.generate_token():
-                return {}
+                raise Exception("Erreur lors de la récupération des headers")
 
-        return {
-            'Authorization': f'Bearer {self.access_token}',
-            'Content-Type': 'application/json'
-        }
-
-    def get_stations_info(self) -> Optional[List[dict]]:
-        """Récupère les informations statiques des stations"""
-        url = f"{self.base_url}/gbfs/v3/station_information.json"
-
-        response = requests.get(url)
+        response = requests.get(url, headers={
+            'Authorization': f'Taknv1 {self.access_token}',
+            'Accept': '*/*',
+            'Content-Type': contentType if contentType else 'application/json'
+        })
         if response.status_code != 200:
-            raise Exception("Erreur lors de la récupération des informations des stations")
-        data = response.json()
-        return data['data']['stations']
-
-    def get_bikes_info(self) -> Optional[List[dict]]:
-        """Récupère les informations des vélos"""
-        url = f"{self.base_url}/bikes"
-        headers = self.get_headers()
-
-        if not headers:
-            raise Exception("Erreur lors de la récupération des headers")
-
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            raise Exception("Erreur lors de la récupération des informations des vélos")
-
+            print("Response:", response.status_code, response.text)
+            raise Exception(f"Erreur lors de la requête à l'endpoint {endpoint}")
 
         return response.json()
 
-    def get_bike_info(self) -> Optional[dict]:
-        """Récupère les informations des vélos"""
-        url = f"{self.base_url}/bikes"
-        headers = self.get_headers()
 
-        if not headers:
-            raise Exception("Erreur lors de la récupération des headers")
+#     gbfs/v3/station_information.json
+#     bikes
+#     bikes/{id}
 
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            raise Exception("Erreur lors de la récupération des informations des vélos")
-
-        return response.json()
-
-def register_stations() -> Dict[int, Station]:
+def register_stations(bicloo_api: BiclooAPI) -> Dict[int, Station]:
     """Crée un dictionnaire de toutes les stations"""
-    api = VeloAPI()
-    stations_data = api.get_stations_info()
+
+    stations_data = bicloo_api.get("gbfs/v3/station_information.json")['data']['stations']
     stations_dict = {}
 
     for station_data in stations_data:
@@ -103,28 +87,26 @@ def register_stations() -> Dict[int, Station]:
 
     return stations_dict
 
-def register_bikes() -> Dict[str, Bike]:
-    api = VeloAPI()
-    bikes_data = api.get_bikes_info()
+def register_bikes(bicloo_api: BiclooAPI) -> Dict[str, Bike]:
+    bikes_data = bicloo_api.get("bikes", "application/vnd.bikes.v4+json")
     bikes_dict = {}
 
     for bike_data in bikes_data:
         velo = Bike(
-            velo_id=bike_data['id'],
+            bike_id=bike_data['id'],
             number=bike_data['number'],
             created_at=bike_data['createdAt']
         )
-
         bikes_dict[velo.id] = velo
 
     return bikes_dict
 
-def main():
-    """Fonction principale pour tester le code"""
+if __name__ == "__main__":
+    api= BiclooAPI()
     print("=== Récupération des stations ===")
-    stations = register_stations()
+    stations = register_stations(api)
     print(f"Nombre de stations récupérées: {len(stations)}")
     print("\n=== Récupération des vélos ===")
-    bikes = register_bikes()
+    bikes = register_bikes(api)
     print(f"Nombre de vélos récupérés: {len(bikes)}")
 
