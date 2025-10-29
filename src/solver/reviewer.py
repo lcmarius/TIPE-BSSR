@@ -33,7 +33,7 @@ def review_solution(graph: SolvingStationGraph) -> SolutionMetrics:
     nb_stations = 0
 
     for station in graph.list_stations():
-        if station.id != 0:
+        if station.number != 0:
             total_bike_gap += abs(station.bike_gap())
             nb_stations += 1
 
@@ -64,13 +64,13 @@ def compute_bounds(graph: SolvingStationGraph) -> tuple[float, float]:
     if len(stations) <= 1:
         return 0.0, 0.0
 
-    non_depot = [s for s in stations if s.id != 0]
+    non_depot = [s for s in stations if s.number != 0]
     if len(non_depot) == 0:
         return 0.0, 0.0
 
     mst_distance = 0.0
-    visited = {non_depot[0].id}
-    remaining = {s.id for s in non_depot[1:]}
+    visited = {non_depot[0].number}
+    remaining = {s.number for s in non_depot[1:]}
 
     while remaining:
         min_edge = float('inf')

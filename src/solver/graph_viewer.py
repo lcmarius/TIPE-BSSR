@@ -45,7 +45,7 @@ def animate_graph(graph: SolvingStationGraph, output_file: str = "algorithm_anim
 
     pos = {}
     for station in graph.list_stations():
-        pos[station.id] = (station.long, station.lat)
+        pos[station.number] = (station.long, station.lat)
 
     # Calculer les limites des axes une seule fois pour éviter le redimensionnement
     all_x = [p[0] for p in pos.values()]
@@ -164,7 +164,7 @@ def save_final_solution(graph: SolvingStationGraph, output_file: str = "solution
 
     pos = {}
     for station in graph.list_stations():
-        pos[station.id] = (station.long, station.lat)
+        pos[station.number] = (station.long, station.lat)
 
     # Calculer les limites des axes
     all_x = [p[0] for p in pos.values()]

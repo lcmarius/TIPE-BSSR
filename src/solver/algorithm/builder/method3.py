@@ -24,7 +24,7 @@ def method3(graph: SolvingStationGraph, vehicle_capacity: int):
     Construit une tournée en fusionnant progressivement des routes selon leur économie
     """
     # Récupérer toutes les stations (sauf le dépôt)
-    stations = [s for s in graph.list_stations() if s.id != 0]
+    stations = [s for s in graph.list_stations() if s.number != 0]
     if len(stations) == 0:
         return []
 
@@ -45,15 +45,15 @@ def method3(graph: SolvingStationGraph, vehicle_capacity: int):
                 - stations[i].distance_to(stations[j])
            )
 
-            savings_list.append((economy, stations[i].id, stations[j].id))
+            savings_list.append((economy, stations[i].number, stations[j].number))
 
     # ÉTAPE 2 : Initialiser chaque station comme une route individuelle
     routes = {}
-    route_id_from_station_id = {}
+    route_id_from_station_number = {}
     next_route_id = 0
     for i in range(len(stations)):
-        routes[next_route_id] = [stations[i].id]
-        route_id_from_station_id[stations[i].id] = next_route_id
+        routes[next_route_id] = [stations[i].number]
+        route_id_from_station_number[stations[i].number] = next_route_id
         next_route_id += 1
 
     # ÉTAPE 3 : On trie les économies des plus grandes aux plus petites pour traiter en priorité les plus intéressantes
@@ -62,11 +62,11 @@ def method3(graph: SolvingStationGraph, vehicle_capacity: int):
     # ÉTAPE 4 : Fusionner les routes selon les économies
     for economy, station_i_id, station_j_id in savings_list:
         # On ignore les stations déjà fusionnées
-        if station_i_id not in route_id_from_station_id or station_j_id not in route_id_from_station_id:
+        if station_i_id not in route_id_from_station_number or station_j_id not in route_id_from_station_number:
             continue
 
-        route_i_id = route_id_from_station_id[station_i_id]
-        route_j_id = route_id_from_station_id[station_j_id]
+        route_i_id = route_id_from_station_number[station_i_id]
+        route_j_id = route_id_from_station_number[station_j_id]
 
         # On ignore si les deux stations sont déjà dans la même route (évite les cycles)
         if route_i_id == route_j_id:
@@ -94,8 +94,8 @@ def method3(graph: SolvingStationGraph, vehicle_capacity: int):
 
         # On enregistre la nouvelle route fusionnée
         routes[next_route_id] = merged_route
-        for station_id in merged_route:
-            route_id_from_station_id[station_id] = next_route_id
+        for station_number in merged_route:
+            route_id_from_station_number[station_number] = next_route_id
         next_route_id += 1
 
         # On supprime les anciennes routes
@@ -120,8 +120,8 @@ def is_route_faisable(graph: SolvingStationGraph, capacity: int, stations: list[
     La charge du camion doit rester dans l'intervalle [0, capacity] à chaque étape
     """
     load = 0
-    for station_id in stations:
-        load += graph.get_station(station_id).bike_gap()
+    for station_number in stations:
+        load += graph.get_station(station_number).bike_gap()
         if load < 0 or load > capacity:
             return False
 

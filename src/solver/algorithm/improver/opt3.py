@@ -18,11 +18,11 @@ def opt3(graph: SolvingStationGraph, vehicle_capacity: int, max_iterations: int 
     n = len(turn)
     distance_cache = {}
 
-    def get_distance(id1: int, id2: int) -> float:
+    def get_distance(number1: int, number2: int) -> float:
         """Calcule la distance entre deux stations avec memoization"""
-        if (id1, id2) not in distance_cache:
-            distance_cache[(id1, id2)] = graph.get_station(id1).distance_to(graph.get_station(id2))
-        return distance_cache[(id1, id2)]
+        if (number1, number2) not in distance_cache:
+            distance_cache[(number1, number2)] = graph.get_station(number1).distance_to(graph.get_station(number2))
+        return distance_cache[(number1, number2)]
 
     def calculate_total_distance(tour: list[int]) -> float:
         """Calcule la distance totale d'un tour"""

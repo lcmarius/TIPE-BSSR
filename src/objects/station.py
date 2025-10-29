@@ -45,11 +45,11 @@ class TargetedStation(Station):
 
     @staticmethod
     def from_station(station: Station, bike_count: int, bike_target: int):
-        return TargetedStation(station.id, station.name, station.capacity, station.address, station.long, station.lat, bike_count, bike_target)
+        return TargetedStation(station.number, station.name, station.capacity, station.address, station.long, station.lat, bike_count, bike_target)
 
-    def __init__(self, station_id: int, name: str, capacity: int,
+    def __init__(self, station_number: int, name: str, capacity: int,
                  address: str, geo_long: float, geo_lat: float, bike_count: int, bike_target: int):
-        super().__init__(station_id, name, capacity, address, geo_long, geo_lat)
+        super().__init__(station_number, name, capacity, address, geo_long, geo_lat)
         self.bike_count = bike_count
         self.bike_target = bike_target
 
@@ -73,4 +73,4 @@ class TargetedStation(Station):
         return self.bike_gap() == 0
 
     def __str__(self):
-        return f"TargetedStation(id={self.id}, nom='{self.name}', capacity={self.capacity}, bike_count={self.bike_count}, bike_target={self.bike_target})"
+        return f"TargetedStation(number={self.number}, nom='{self.name}', capacity={self.capacity}, bike_count={self.bike_count}, bike_target={self.bike_target})"

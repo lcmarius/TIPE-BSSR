@@ -8,128 +8,128 @@ class SolvingStationGraph:
     """Directed unweighted graph for Station solving"""
 
     def __init__(self, depot_station: Station):
-        self.successors: Dict[int, int | None] = {}  # station_id -> [successor_station_id | None]
-        self.predecessors: Dict[int, int | None] = {}  # station_id -> [predecessor_station_id | None]
-        self.station_map: Dict[int, TargetedStation] = {}  # station_id -> Station object
+        self.successors: Dict[int, int | None] = {}  # station_number -> [successor_station_number | None]
+        self.predecessors: Dict[int, int | None] = {}  # station_number -> [predecessor_station_number | None]
+        self.station_map: Dict[int, TargetedStation] = {}  # station_number -> Station object
 
-        assert depot_station.id == 0, "Depot must have id 0"
+        assert depot_station.number == 0, "Depot must have number 0"
         self.add_station(TargetedStation.from_station(depot_station, 0, 0))
 
-    def has_station(self, station_id: int) -> bool:
-        return station_id in self.successors
+    def has_station(self, station_number: int) -> bool:
+        return station_number in self.successors
 
     def add_station(self, station: TargetedStation) -> None:
-        self.successors[station.id] = None
-        self.predecessors[station.id] = None
-        self.station_map[station.id] = station
+        self.successors[station.number] = None
+        self.predecessors[station.number] = None
+        self.station_map[station.number] = station
 
-    def get_station(self, station_id: int) -> TargetedStation:
-        if not self.has_station(station_id):
-            raise Exception(f"Station {station_id} does not exist")
-        return self.station_map[station_id]
+    def get_station(self, station_number: int) -> TargetedStation:
+        if not self.has_station(station_number):
+            raise Exception(f"Station {station_number} does not exist")
+        return self.station_map[station_number]
 
     def list_stations(self) -> List[TargetedStation]:
         return list(self.station_map.values())
 
     def list_edges(self) -> List[Tuple[int, int]]:
         edges = []
-        for station_id in self.successors:
-            neighbor = self.successors[station_id]
+        for station_number in self.successors:
+            neighbor = self.successors[station_number]
             if neighbor is not None:
-                edges.append((station_id, neighbor))
+                edges.append((station_number, neighbor))
         return edges
 
-    def remove_station(self, station_id: int) -> None:
-        if not self.has_station(station_id):
-            raise Exception(f"Station {station_id} does not exist")
+    def remove_station(self, station_number: int) -> None:
+        if not self.has_station(station_number):
+            raise Exception(f"Station {station_number} does not exist")
 
         # Remove edges where this station is the successor
-        for sid in self.successors:
-            if station_id == self.successors[sid]:
-                self.successors[sid] = None
+        for snumber in self.successors:
+            if station_number == self.successors[snumber]:
+                self.successors[snumber] = None
 
         # Remove edges where this station is the predecessor
-        for sid in self.predecessors:
-            if station_id == self.predecessors[sid]:
-                self.predecessors[sid] = None
+        for snumber in self.predecessors:
+            if station_number == self.predecessors[snumber]:
+                self.predecessors[snumber] = None
 
-        del self.successors[station_id]
-        del self.predecessors[station_id]
-        del self.station_map[station_id]
+        del self.successors[station_number]
+        del self.predecessors[station_number]
+        del self.station_map[station_number]
 
     def size(self) -> int:
         return len(self.successors)
 
-    def has_edge(self, station_id1: int, station_id2: int) -> bool:
-        return self.has_station(station_id1) and station_id2 == self.successors[station_id1]
+    def has_edge(self, station_number1: int, station_number2: int) -> bool:
+        return self.has_station(station_number1) and station_number2 == self.successors[station_number1]
 
-    def add_edge(self, station_id1: int, station_id2: int) -> None:
-        if not self.has_station(station_id1):
-            raise Exception(f"Station {station_id1} does not exist")
+    def add_edge(self, station_number1: int, station_number2: int) -> None:
+        if not self.has_station(station_number1):
+            raise Exception(f"Station {station_number1} does not exist")
 
-        if not self.has_station(station_id2):
-            raise Exception(f"Station {station_id2} does not exist")
+        if not self.has_station(station_number2):
+            raise Exception(f"Station {station_number2} does not exist")
 
-        if self.has_edge(station_id1, station_id2):
-            raise Exception(f"Edge {station_id1} -> {station_id2} already exists")
+        if self.has_edge(station_number1, station_number2):
+            raise Exception(f"Edge {station_number1} -> {station_number2} already exists")
 
-        self.successors[station_id1] = station_id2
-        self.predecessors[station_id2] = station_id1
+        self.successors[station_number1] = station_number2
+        self.predecessors[station_number2] = station_number1
 
-    def remove_edge(self, station_id1: int, station_id2: int) -> None:
-        if not self.has_edge(station_id1, station_id2):
-            raise Exception(f"Edge {station_id1} -> {station_id2} does not exist")
+    def remove_edge(self, station_number1: int, station_number2: int) -> None:
+        if not self.has_edge(station_number1, station_number2):
+            raise Exception(f"Edge {station_number1} -> {station_number2} does not exist")
 
-        self.successors[station_id1] = None
-        self.predecessors[station_id2] = None
+        self.successors[station_number1] = None
+        self.predecessors[station_number2] = None
 
     def is_connex(self):
         return len(self.list_edges()) == self.size() - 1
 
-    def get_successor(self, station_id: int) -> int | None:
-        if not self.has_station(station_id):
-            raise Exception(f"Station {station_id} does not exist")
-        return self.successors[station_id]
+    def get_successor(self, station_number: int) -> int | None:
+        if not self.has_station(station_number):
+            raise Exception(f"Station {station_number} does not exist")
+        return self.successors[station_number]
 
-    def get_predecessor(self, station_id: int) -> int | None:
-        if not self.has_station(station_id):
-            raise Exception(f"Station {station_id} does not exist")
+    def get_predecessor(self, station_number: int) -> int | None:
+        if not self.has_station(station_number):
+            raise Exception(f"Station {station_number} does not exist")
 
-        return self.predecessors[station_id]
+        return self.predecessors[station_number]
 
-    def get_nearest_neighbor(self, station_id: int, condition) -> TargetedStation | None:
+    def get_nearest_neighbor(self, station_number: int, condition) -> TargetedStation | None:
         """
         Trouve la station la plus proche d'une station de référence qui satisfait une condition donnée.
-        :param station_id: L'ID de la station de référence.
+        :param station_number: Le numéro de la station de référence.
         :param condition: Une fonction prenant une station en entrée et retournant un booléen.
         :return: La station la plus proche qui satisfait la condition, ou None si aucune ne la satisfait.
         """
-        if not self.has_station(station_id):
-            raise Exception(f"Station {station_id} does not exist")
+        if not self.has_station(station_number):
+            raise Exception(f"Station {station_number} does not exist")
 
-        reference_station = self.get_station(station_id)
+        reference_station = self.get_station(station_number)
 
         candidates = [
             (reference_station.distance_to(s), s)
             for s in self.list_stations()
-            if s.id != station_id and condition(s)
+            if s.number != station_number and condition(s)
         ]
 
         return min(candidates, key=lambda x: x[0])[1] if candidates else None
 
     def get_turn(self) -> list[int]:
         """
-        Récupère le tour actuel du graphe sous forme de liste d'IDs
-        :return: Liste des IDs dans l'ordre du tour
+        Récupère le tour actuel du graphe sous forme de liste de numéros de stations.
+        :return: Liste des numéros de station dans l'ordre du tour
         """
         turn = []
-        current_id = 0
+        current_number = 0
         visited = set()
 
-        while current_id is not None and current_id not in visited:
-            turn.append(current_id)
-            visited.add(current_id)
-            current_id = self.get_successor(current_id)
+        while current_number is not None and current_number not in visited:
+            turn.append(current_number)
+            visited.add(current_number)
+            current_number = self.get_successor(current_number)
 
         return turn
 
