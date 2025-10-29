@@ -5,5 +5,5 @@ class Bike:
         self.number = number
         self.created_at = created_at
 
-    def __str(self):
+    def __str__(self):
         return f"Bike(id='{self.id}', number={self.number}, created_at='{self.created_at}')"

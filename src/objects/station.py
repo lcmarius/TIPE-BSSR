@@ -1,18 +1,22 @@
 import math
+from enum import Enum
+
+
 
 class Station:
 
-    def __init__(self, station_id: int, name: str, capacity: int,
-                 address: str, geo_long: float, geo_lat: float):
-        self.id = station_id
+    def __init__(self, station_number: int, name: str, capacity: int,
+                 address: str, geo_long: float, geo_lat: float, connected: bool = True):
+        self.number = station_number
         self.name = name
         self.capacity = capacity
         self.address = address
         self.long = geo_long
         self.lat = geo_lat
+        self.connected = connected
 
     def __str__(self):
-        return f"Station(id={self.id}, nom='{self.name}', capacity={self.capacity})"
+        return f"Station(number={self.number}, nom='{self.name}', capacity={self.capacity})"
 
     def distance_to(self, other: 'Station') -> float:
         """Calcule la distance haversine (en mètres) entre cette station et une autre"""
