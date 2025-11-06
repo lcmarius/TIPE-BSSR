@@ -154,6 +154,19 @@ def method1_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: in
     method1(graph, vehicle_capacity)
     opt2(graph, vehicle_capacity)
     opt3(graph, vehicle_capacity)
+    
+
+def method3_simple(graph: SolvingStationGraph, vehicle_capacity: int):
+    method3(graph, vehicle_capacity)
+
+def method3_with_opt2(graph: SolvingStationGraph, vehicle_capacity: int):
+    method3(graph, vehicle_capacity)
+    opt2(graph, vehicle_capacity)
+
+def method3_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
+    method3(graph, vehicle_capacity)
+    opt2(graph, vehicle_capacity)
+    opt3(graph, vehicle_capacity)
 
 def generate_random_instance(n_stations: int, vehicle_capacity: int, seed: int = None):
     """
@@ -230,17 +243,6 @@ def generate_random_instance(n_stations: int, vehicle_capacity: int, seed: int =
 
     return graph, depot, stations
 
-def method3_simple(graph: SolvingStationGraph, vehicle_capacity: int):
-    method3(graph, vehicle_capacity)
-
-def method3_with_opt2(graph: SolvingStationGraph, vehicle_capacity: int):
-    method3(graph, vehicle_capacity)
-    opt2(graph, vehicle_capacity)
-
-def method3_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
-    method3(graph, vehicle_capacity)
-    opt2(graph, vehicle_capacity)
-    opt3(graph, vehicle_capacity)
 
 def generate_clustered_instance(n_stations: int, vehicle_capacity: int, seed: int = None):
     """

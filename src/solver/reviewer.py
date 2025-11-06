@@ -29,14 +29,6 @@ def review_solution(graph: SolvingStationGraph) -> SolutionMetrics:
 
         current_id = successor
 
-    total_bike_gap = 0.0
-    nb_stations = 0
-
-    for station in graph.list_stations():
-        if station.number != 0:
-            total_bike_gap += abs(station.bike_gap())
-            nb_stations += 1
-
     lower_bound, upper_bound = compute_bounds(graph)
 
     if upper_bound <= lower_bound:
@@ -68,7 +60,7 @@ def compute_bounds(graph: SolvingStationGraph) -> tuple[float, float]:
     if len(non_depot) == 0:
         return 0.0, 0.0
 
-    mst_distance = 0.0
+    distance = 0.0
     visited = {non_depot[0].number}
     remaining = {s.number for s in non_depot[1:]}
 
@@ -86,7 +78,7 @@ def compute_bounds(graph: SolvingStationGraph) -> tuple[float, float]:
                     min_node = r_id
 
         if min_node is not None:
-            mst_distance += min_edge
+            distance += min_edge
             visited.add(min_node)
             remaining.remove(min_node)
 
