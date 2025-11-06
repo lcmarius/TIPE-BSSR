@@ -88,7 +88,7 @@ def compute_bounds(graph: SolvingStationGraph) -> tuple[float, float]:
     # Arrête du dépot au premier nœud, et arrête du dernier nœud au dépot
     two_shortest = sum(edges[:2]) if len(edges) >= 2 else sum(edges)
 
-    held_karp = mst_distance + two_shortest
+    held_karp = distance + two_shortest
 
     return held_karp, 2*held_karp
 

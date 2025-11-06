@@ -574,7 +574,7 @@ def run_benchmarks():
             vehicle_capacity=vehicle_capacity,
             num_problems=num_problems,
             base_seed=base_seed,
-            verbose=True,
+            verbose=False,
             max_workers=4
         )
 

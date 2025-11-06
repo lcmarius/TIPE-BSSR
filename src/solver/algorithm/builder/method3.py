@@ -62,6 +62,7 @@ def method3(graph: SolvingStationGraph, vehicle_capacity: int):
     # ÉTAPE 4 : Fusionner les routes selon les économies
     for economy, station_i_id, station_j_id in savings_list:
         # On ignore les stations déjà fusionnées
+        # Le premier cas n'existe pas, go retirer ???
         if station_i_id not in route_id_from_station_number or station_j_id not in route_id_from_station_number:
             continue
 
@@ -103,12 +104,17 @@ def method3(graph: SolvingStationGraph, vehicle_capacity: int):
         del routes[route_j_id]
 
     # ÉTAPE 5 : Construire la tournée finale
+    print(routes.values())
     final_route = max(routes.values(), key=lambda r: len(r))
+    
+    # Mhmhmhmhmn, il est sensé rester 1 chemin, pour notre problème. Il faut donc fusionner ceux restant.
+    # En remarquant que la somme des gap des stations dans un chemin de taille au moins 2 font 0. Et que la somme des gap des stations de tout les chemins de taille 1 font 0
 
     graph.add_edge(0, final_route[0])
     for i in range(len(final_route)-1):
         graph.add_edge(final_route[i], final_route[i + 1])
     graph.add_edge(final_route[-1], 0)
+
 
     return None
 
