@@ -5,6 +5,7 @@ from typing import Callable, Dict, List
 
 from src.objects.station import TargetedStation, Station
 from src.solver.algorithm.builder.method1 import method1
+from src.solver.algorithm.builder.method2 import method2
 from src.solver.algorithm.builder.method3 import method3
 
 from src.solver.algorithm.improver.opt2 import opt2
@@ -154,7 +155,21 @@ def method1_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: in
     method1(graph, vehicle_capacity)
     opt2(graph, vehicle_capacity)
     opt3(graph, vehicle_capacity)
-    
+  
+def method2_only(graph: SolvingStationGraph, vehicle_capacity: int):
+    """method2 seule"""
+    method2(graph, vehicle_capacity)
+
+def method2_with_opt2(graph: SolvingStationGraph, vehicle_capacity: int):
+    """method2 + 2-opt"""
+    method2(graph, vehicle_capacity)
+    opt2(graph, vehicle_capacity)
+
+def method2_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
+    """method2 + 2-opt + 3-opt"""
+    method2(graph, vehicle_capacity)
+    opt2(graph, vehicle_capacity)
+    opt3(graph, vehicle_capacity)
 
 def method3_simple(graph: SolvingStationGraph, vehicle_capacity: int):
     method3(graph, vehicle_capacity)
@@ -543,6 +558,9 @@ def run_benchmarks():
         "method1": method1_only,
         "method1 + 2-opt": method1_with_opt2,
         "method1 + 2-opt + 3-opt": method1_with_opt2_then_opt3,
+        "method2": method2_only,
+        "method2 + 2-opt": method2_with_opt2,
+        "method2 + 2-opt + 3-opt": method2_with_opt2_then_opt3,
         "method3": method3_simple,
         "method3 + 2-opt": method3_with_opt2,
         "method3 + 2-opt + 3-opt": method3_with_opt2_then_opt3,
