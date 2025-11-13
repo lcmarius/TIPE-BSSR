@@ -18,7 +18,7 @@ class GraphSnapshot:
         self.highlighted_stations = highlighted_stations or []
         self.highlighted_edge = highlighted_edge
 
-def animate_graph(graph: SolvingStationGraph, output_file: str = "algorithm_animation", interval: int = 1000, save_gif: bool = True, max_snapshots: int = None):
+def animate_graph(snapshots: List[GraphSnapshot], output_file: str = "algorithm_animation", interval: int = 1000, save_gif: bool = True, max_snapshots: int = None):
     """
     Créer une animation du graphe
     :param graph: Le graphe à animer
@@ -29,22 +29,17 @@ def animate_graph(graph: SolvingStationGraph, output_file: str = "algorithm_anim
     :return:
     """
 
-    if not graph.snapshots:
-        raise Exception("No snapshots recorded. Use take_snapshot() during your algorithm.")
-
     # Échantillonnage des snapshots si trop nombreux
-    snapshots = graph.snapshots
     if max_snapshots and len(snapshots) > max_snapshots:
+        last=snapshots[-1]
         step = len(snapshots) // max_snapshots
         snapshots = [snapshots[i] for i in range(0, len(snapshots), step)]
-        # Toujours garder la dernière frame
-        if snapshots[-1] != graph.snapshots[-1]:
-            snapshots.append(graph.snapshots[-1])
+        snapshots.append(last)
 
     fig, ax = plt.subplots(figsize=(12, 8), dpi=80)  # DPI réduit pour fichier plus léger
 
     pos = {}
-    for station in graph.list_stations():
+    for station in list(snapshots[0].station_map.values()):
         pos[station.number] = (station.long, station.lat)
 
     # Calculer les limites des axes une seule fois pour éviter le redimensionnement

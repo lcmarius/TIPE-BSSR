@@ -11,16 +11,16 @@ from src.solver.graph import SolvingStationGraph
 from src.solver.graph_viewer import GraphSnapshot
 
 
-def construire_chemin_surplus_graph(graph: SolvingStationGraph) -> List[TargetedStation]:
+def construire_chemin_surplus_graph(graph: SolvingStationGraph):
     """
     Construit un chemin en parcourant uniquement les stations en surplus,
-    à partir du dépôt (numéro 0), en utilisant les méthodes du graphe.
+    à partir du dépôt (0).
     """
     start = graph.get_station(0)
-    chemin: List[TargetedStation] = [start]
+    chemin = [start]
 
     # Liste des stations en surplus (écart positif)
-    surplus = [s for s in graph.list_stations() if s.number != 0 and s.bike_gap() > 0]
+    surplus = [s for s in graph.list_stations() if s.number != 0 and s.bike_gap() > 0] #ceration d'une liste par compréhension avec toutes les stations qui ont un surplus
 
     if not surplus:
         return chemin
@@ -29,13 +29,10 @@ def construire_chemin_surplus_graph(graph: SolvingStationGraph) -> List[Targeted
 
     # Boucle gloutonne : on ajoute le plus proche voisin en surplus à chaque étape
     while surplus:
-        nearest = graph.get_nearest_neighbor(
-            current_station.number,
-            lambda s: s in surplus
-        )
+        nearest = graph.get_nearest_neighbor(current_station.number,lambda s: s in surplus)
 
         if nearest is None:
-            break  # plus de station valide trouvée
+            break  # On a pas trouvé de station valide
 
         chemin.append(nearest)
         surplus.remove(nearest)
@@ -44,7 +41,7 @@ def construire_chemin_surplus_graph(graph: SolvingStationGraph) -> List[Targeted
     return chemin
 
 
-def method2(graph: SolvingStationGraph, capacite: int) -> List[GraphSnapshot]:
+def method2(graph: SolvingStationGraph, capacite: int):
     snapshots = [GraphSnapshot(graph, "État initial", [], None)]
 
     chemin = construire_chemin_surplus_graph(graph)
@@ -78,10 +75,7 @@ def method2(graph: SolvingStationGraph, capacite: int) -> List[GraphSnapshot]:
             if not possibles:
                 break
 
-            nearest_deficit = graph.get_nearest_neighbor(
-                current_station.number,
-                lambda s: s in possibles
-            )
+            nearest_deficit = graph.get_nearest_neighbor(current_station.number,lambda s: s in possibles)
 
             if nearest_deficit is None:
                 break

@@ -53,7 +53,7 @@ def is_turn_feasible(graph: SolvingStationGraph, turn: list[int], vehicle_capaci
     """
     vehicle_load = 0
 
-    for i in range(1, len(turn)):  # Commencer apr�s le d�p�t
+    for i in range(1, len(turn)):  # Commencer après le dépôt
         station = graph.get_station(turn[i])
         vehicle_load += station.bike_gap()
 

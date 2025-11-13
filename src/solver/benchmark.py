@@ -12,6 +12,7 @@ from src.solver.algorithm.improver.opt2 import opt2
 from src.solver.algorithm.improver.opt3 import opt3
 from src.solver.graph import SolvingStationGraph
 from src.solver.reviewer import review_solution, SolutionMetrics
+from src.solver.graph_viewer import animate_graph
 from src.solver.solver import is_graph_solvable
 
 
@@ -143,33 +144,39 @@ def run_benchmark(
 
 def method1_only(graph: SolvingStationGraph, vehicle_capacity: int):
     """method1 seule"""
-    method1(graph, vehicle_capacity)
+    s = method1(graph, vehicle_capacity)
+    return s
 
 def method1_with_opt2(graph: SolvingStationGraph, vehicle_capacity: int):
     """method1 + 2-opt"""
-    method1(graph, vehicle_capacity)
+    s = method1(graph, vehicle_capacity)
     opt2(graph, vehicle_capacity)
+    return s
 
 def method1_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
     """method1 + 2-opt + 3-opt"""
-    method1(graph, vehicle_capacity)
+    s = method1(graph, vehicle_capacity)
     opt2(graph, vehicle_capacity)
     opt3(graph, vehicle_capacity)
+    return s
   
 def method2_only(graph: SolvingStationGraph, vehicle_capacity: int):
     """method2 seule"""
-    method2(graph, vehicle_capacity)
+    s = method2(graph, vehicle_capacity)
+    return s
 
 def method2_with_opt2(graph: SolvingStationGraph, vehicle_capacity: int):
     """method2 + 2-opt"""
-    method2(graph, vehicle_capacity)
+    s = method2(graph, vehicle_capacity)
     opt2(graph, vehicle_capacity)
+    return s
 
 def method2_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
     """method2 + 2-opt + 3-opt"""
-    method2(graph, vehicle_capacity)
+    s = method2(graph, vehicle_capacity)
     opt2(graph, vehicle_capacity)
     opt3(graph, vehicle_capacity)
+    return s
 
 def method3_simple(graph: SolvingStationGraph, vehicle_capacity: int):
     method3(graph, vehicle_capacity)
@@ -573,7 +580,7 @@ def run_benchmarks():
         "Tight Capacity": generate_tight_capacity_instance,
     }
 
-    n_stations = 20
+    n_stations = 50
     vehicle_capacity = 15
     num_problems = 10
     base_seed = 48
@@ -615,5 +622,27 @@ def run_benchmarks():
     print_global_summary(all_results)
 
 
+def afficher():
+    vc=10
+    n=20
+    s=120
+    graph, depot, stations = generate_random_instance(n, vc, s)
+    graph2, depot2, stations2 = generate_random_instance(n, vc, s)
+    graph3, depot3, stations3 = generate_random_instance(n, vc, s)
+    graph4, depot4, stations4 = generate_random_instance(n, vc, s)
+    s1 = method1(graph, vc)
+    s2 = method2(graph2, vc)
+    s3 = method2_with_opt2_then_opt3(graph3, vc)
+    s4 = method1_with_opt2_then_opt3(graph4, vc)
+    animate_graph(s1, "method1")
+    animate_graph(s2, "method2")
+    animate_graph(s3, "method2opted")
+    animate_graph(s4, "method1opted")
+    print("methode1", review_solution(graph))
+    print("methode1opted", review_solution(graph2))
+    print("methode2", review_solution(graph3))
+    print("methode2opted", review_solution(graph4))
+    
+
 if __name__ == "__main__":
-    run_benchmarks()
+    afficher()
