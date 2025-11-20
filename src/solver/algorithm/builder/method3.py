@@ -72,7 +72,7 @@ def method3(graph: SolvingStationGraph, vehicle_capacity: int):
         # On ignore si les deux stations sont déjà dans la même route (évite les cycles)
         if route_i_id == route_j_id:
             continue
-
+ 
         route_i = routes[route_i_id]
         route_j = routes[route_j_id]
 
