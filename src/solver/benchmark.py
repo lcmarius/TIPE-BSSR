@@ -4,12 +4,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Dict, List
 
 from src.objects.station import TargetedStation, Station
-from src.solver.algorithm.builder.method1 import method1
-from src.solver.algorithm.builder.method2 import method2
-from src.solver.algorithm.builder.method3 import method3
+from src.solver.algorithm.method1 import method1
+from src.solver.algorithm.method2 import method2
 
-from src.solver.algorithm.improver.opt2 import opt2
-from src.solver.algorithm.improver.opt3 import opt3
+from src.solver.algorithm.opt import opt2, opt3
 from src.solver.graph import SolvingStationGraph
 from src.solver.reviewer import review_solution, SolutionMetrics
 from src.solver.solver import is_graph_solvable
@@ -176,18 +174,6 @@ def method2_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: in
     opt2(graph, vehicle_capacity)
     opt3(graph, vehicle_capacity)
     return s
-
-def method3_simple(graph: SolvingStationGraph, vehicle_capacity: int):
-    method3(graph, vehicle_capacity)
-
-def method3_with_opt2(graph: SolvingStationGraph, vehicle_capacity: int):
-    method3(graph, vehicle_capacity)
-    opt2(graph, vehicle_capacity)
-
-def method3_with_opt2_then_opt3(graph: SolvingStationGraph, vehicle_capacity: int):
-    method3(graph, vehicle_capacity)
-    opt2(graph, vehicle_capacity)
-    opt3(graph, vehicle_capacity)
 
 def generate_random_instance(n_stations: int, vehicle_capacity: int, seed: int = None):
     """
@@ -576,9 +562,9 @@ def run_benchmarks():
         "Tight Capacity": generate_tight_capacity_instance,
     }
 
-    n_stations = 30
+    n_stations = 20
     vehicle_capacity = 12
-    num_problems = 10
+    num_problems = 5
     base_seed = 9783
 
     print("\n" + "=" * 100)
@@ -595,7 +581,7 @@ def run_benchmarks():
             vehicle_capacity=vehicle_capacity,
             num_problems=num_problems,
             base_seed=base_seed,
-            verbose=False,
+            verbose=True,
             max_workers=4
         )
 
@@ -619,16 +605,16 @@ def run_benchmarks():
 
 
 def afficher():
-    vc=10
-    n=20
-    s=398
+    vc=15
+    n=107
+    s=8276
     graph, depot, stations = generate_random_instance(n, vc, s)
     graph2, depot2, stations2 = generate_random_instance(n, vc, s)
     graph3, depot3, stations3 = generate_random_instance(n, vc, s)
     graph4, depot4, stations4 = generate_random_instance(n, vc, s)
     method1_only(graph, vc)
     method1_with_opt2_then_opt3(graph2, vc)
-    method2_only(graph3, vc)
+    method2(graph3, vc)
     method2_with_opt2_then_opt3(graph4, vc)
     graph.render("output_method1.png", "Méthode 1 seule")
     graph2.render("output_method1_opt2_opt3.png", "Méthode 1 + 2-opt + 3-opt")
@@ -642,4 +628,4 @@ def afficher():
     
 
 if __name__ == "__main__":
-    run_benchmarks()
+    afficher()
