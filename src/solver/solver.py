@@ -38,5 +38,5 @@ def is_graph_solvable(graph: SolvingStationGraph, q: int) -> bool:
 
     return total == 0
 
-def solve(graph: SolvingStationGraph, q: int) -> SolvingStationGraph | None:
+def solve(graph: SolvingStationGraph, q: int, ) -> SolvingStationGraph | None:
     pass
