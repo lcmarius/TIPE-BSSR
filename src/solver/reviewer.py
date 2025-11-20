@@ -8,12 +8,41 @@ class SolutionMetrics:
     score: float  # Score [0, 1] (plus haut = mieux)
 
 
+def assert_solution(solution: SolvingStationGraph):
+    """
+    Vérifie si le graphe donné contient une solution valide (un chemin qui visite toutes les stations)
+    :param solution: Le graphe à vérifier
+    :return: True si c'est une solution valide
+    """
+
+    if not solution.is_connex():
+        raise Exception("Le graphe n'est pas connexe.")
+
+    visited = set()
+    current_id = 0
+    gap=0
+
+    while current_id is not None and current_id not in visited:
+        visited.add(current_id)
+        gap+=solution.get_station(current_id).bike_gap()
+        current_id = solution.get_successor(current_id)
+
+    all_stations = {s.number for s in solution.list_stations() if s.number != 0}
+
+    if gap != 0:
+        raise Exception("Le graphe n'a pas un bike_gap total de 0.")
+
+    if not all_stations.issubset(visited):
+        raise Exception("Le graphe ne visite pas toutes les stations.")
+
 def review_solution(graph: SolvingStationGraph) -> SolutionMetrics:
     """
     Évalue une solution de manière détaillée
     :param graph: Le graphe avec la solution (chemin construit)
     :return: Métriques complètes de la solution
     """
+    assert_solution(graph)
+
     distance = 0.0
     current_id = 0
     visited = set()

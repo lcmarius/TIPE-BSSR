@@ -44,12 +44,10 @@ class SolvingStationGraph:
         if not self.has_station(station_number):
             raise Exception(f"Station {station_number} does not exist")
 
-        # Remove edges where this station is the successor
         for snumber in self.successors:
             if station_number == self.successors[snumber]:
                 self.successors[snumber] = None
 
-        # Remove edges where this station is the predecessor
         for snumber in self.predecessors:
             if station_number == self.predecessors[snumber]:
                 self.predecessors[snumber] = None
@@ -85,7 +83,7 @@ class SolvingStationGraph:
         self.predecessors[station_number2] = None
 
     def is_connex(self):
-        return len(self.list_edges()) == self.size() - 1
+        return len(self.list_edges()) == self.size()
 
     def get_successor(self, station_number: int) -> int | None:
         if not self.has_station(station_number):
@@ -118,21 +116,65 @@ class SolvingStationGraph:
 
         return min(candidates, key=lambda x: x[0])[1] if candidates else None
 
-    def get_turn(self) -> list[int]:
+    def render(self, output_file: str = "graph.png", title: str = "Graphe title"):
         """
-        Récupère le tour actuel du graphe sous forme de liste de numéros de stations.
-        :return: Liste des numéros de station dans l'ordre du tour
+        Affiche et sauvegarde l'état actuel du graphe en PNG
+        :param output_file: Nom du fichier de sortie
+        :param title: Titre de l'image
         """
-        turn = []
-        current_number = 0
-        visited = set()
+        import matplotlib.pyplot as plt
+        import networkx as nx
 
-        while current_number is not None and current_number not in visited:
-            turn.append(current_number)
-            visited.add(current_number)
-            current_number = self.get_successor(current_number)
+        fig, ax = plt.subplots(figsize=(12, 8), dpi=150)
 
-        return turn
+        pos = {}
+        for station in self.list_stations():
+            pos[station.number] = (station.long, station.lat)
+
+        all_x = [p[0] for p in pos.values()]
+        all_y = [p[1] for p in pos.values()]
+        margin = 0.02
+        x_margin = (max(all_x) - min(all_x)) * margin
+        y_margin = (max(all_y) - min(all_y)) * margin
+        xlim = (min(all_x) - x_margin, max(all_x) + x_margin)
+        ylim = (min(all_y) - y_margin, max(all_y) + y_margin)
+
+        G = nx.DiGraph()
+        for sid in self.station_map:
+            G.add_node(sid)
+        for sid, neighbor in self.successors.items():
+            if neighbor is not None:
+                G.add_edge(sid, neighbor)
+
+        node_colors = []
+        for node in G.nodes():
+            gap = self.station_map[node].bike_gap()
+            if gap > 0:
+                node_colors.append('lightgreen')  # Excès de vélos
+            elif gap < 0:
+                node_colors.append('lightcoral')  # Déficit de vélos
+            else:
+                node_colors.append('lightblue')  # Équilibré
+
+        nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=700,
+                               ax=ax, node_shape='s')
+
+        nx.draw_networkx_edges(G, pos, edge_color='black', arrows=True,
+                               arrowsize=20, width=2, ax=ax)
+
+        labels = {}
+        for sid, st in self.station_map.items():
+            labels[sid] = f"{sid}\n{st.bike_gap()}"
+        nx.draw_networkx_labels(G, pos, labels, font_size=10, font_weight='bold', ax=ax)
+
+        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
+        ax.axis('off')
+
+        plt.savefig(output_file, dpi=150, bbox_inches='tight')
+        plt.close()
+
 
 def test():
     s0 = Station(0, "Station init", 1, "Addr 1", -1.5, 47.2)
@@ -163,5 +205,3 @@ def test():
     g.remove_station(3)
     assert g.size() == 3
     assert len(g.list_edges()) == 0
-
-    print("All tests passed!")

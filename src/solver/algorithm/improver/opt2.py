@@ -14,7 +14,8 @@ def opt2(graph: SolvingStationGraph, vehicle_capacity: int, max_iterations: int 
     :param max_iterations: Nombre maximum d'itérations sans amélioration.
     """
 
-    turn = graph.get_turn()
+
+    turn = get_turn(graph)
     n = len(turn)
     distance_cache = {}
 
@@ -23,6 +24,13 @@ def opt2(graph: SolvingStationGraph, vehicle_capacity: int, max_iterations: int 
         if (id1, id2) not in distance_cache:
             distance_cache[(id1, id2)] = graph.get_station(id1).distance_to(graph.get_station(id2))
         return distance_cache[(id1, id2)]
+
+    def calculate_total_distance(tour: list[int]) -> float:
+        """Calcule la distance totale d'un tour"""
+        total = 0.0
+        for i in range(len(tour) - 1):
+            total += get_distance(tour[i], tour[i+1])
+        return total
 
     def try_improve() -> list[int] | None:
         """Cherche une amélioration, retourne le nouveau tour ou None"""
@@ -69,9 +77,26 @@ def apply_turn(graph: SolvingStationGraph, turn: list[int]):
     :param graph: Le graphe à modifier
     :param turn: Liste des IDs dans le nouvel ordre
     """
-    edges_to_remove = graph.list_edges()
-    for edge in edges_to_remove:
-        graph.remove_edge(edge[0], edge[1])
+    for (a,b) in graph.list_edges():
+        graph.remove_edge(a, b)
 
     for i in range(len(turn) - 1):
         graph.add_edge(turn[i], turn[i+1])
+
+    graph.add_edge(turn[-1], turn[0])
+
+def get_turn(graph: SolvingStationGraph) -> list[int]:
+    """
+    Récupère le tour actuel du graphe sous forme de liste de numéros de stations.
+    :return: Liste des numéros de station dans l'ordre du tour
+    """
+    turn = []
+    current_number = 0
+    visited = set()
+
+    while current_number is not None and current_number not in visited:
+        turn.append(current_number)
+        visited.add(current_number)
+        current_number = graph.get_successor(current_number)
+
+    return turn
