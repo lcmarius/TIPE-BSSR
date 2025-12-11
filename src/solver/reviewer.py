@@ -4,6 +4,7 @@ from src.solver.graph import SolvingStationGraph
 @dataclass
 class SolutionMetrics:
     """Métriques d'évaluation d'une solution"""
+    solved: bool
     distance: float          # Distance totale en mètres (plus bas = mieux)
     score: float  # Score [0, 1] (plus haut = mieux)
 
@@ -67,7 +68,8 @@ def review_solution(graph: SolvingStationGraph) -> SolutionMetrics:
 
     return SolutionMetrics(
         distance=distance,
-        score=score
+        score=score,
+        solved=True
     )
 
 

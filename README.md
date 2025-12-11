@@ -2,8 +2,6 @@
 Plan a truck route to minimize the time spent on bicycle stations in the Nantes network.
 
 ## TODO
-- Supprimer le fichier benchmark une fois fini (car après on sera confronté qu'à la situation réelle, plus besoin de simuler des situations)
-- Dans le fichier principal solver, compléter la méthode solve avec un paramètre enum algorithme qui permet de choisir l'algorithme à utiliser, il renverra le solving graph + les metrics associés (la review)
 - Dans la partie scrapping, savoir quelles données récupérer (définir une structure de donnée) + review le code
 - Commencer à élaborer une stratégie dans le targeter (définir mathématiquement le problème ?), revoir les contraintes et les donnés en notre posséssion.
 - Voir aussi un nouveau système de calcule de distance entre 2 points géographique (pour remplacer celui actuellement):
