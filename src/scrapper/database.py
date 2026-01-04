@@ -265,3 +265,93 @@ class Database:
         bikes = [dict(row) for row in cursor.fetchall()]
         self.close()
         return bikes
+
+
+    def dump_daily_data(self, target_date: Optional[datetime] = None, output_dir: str = "dumps") -> str:
+        """
+        Dump les données de la base pour une journée spécifique dans un fichier SQL.
+        :param target_date: La date cible pour le dump (par défaut aujourd'hui)
+        :param output_dir: Le répertoire de sortie pour le fichier dump
+        :return: Le chemin du fichier dump généré
+        """
+        import os
+
+        if target_date is None:
+            target_date = datetime.now()
+
+        day_start = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        filename = f"dump_{target_date.strftime('%Y-%m-%d')}.sql"
+        filepath = os.path.join(output_dir, filename)
+
+        conn = self.connect()
+        cursor = conn.cursor()
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(f"-- Dump Bicloo du {target_date.strftime('%Y-%m-%d')}\n")
+            f.write(f"-- Généré le {datetime.now().isoformat()}\n\n")
+
+            cursor.execute("""
+                           SELECT *
+                           FROM stations
+                           WHERE date(last_updated) <= date(?)
+                           """, (day_end,))
+            stations = cursor.fetchall()
+
+            if stations:
+                f.write("-- Stations\n")
+                for row in stations:
+                    f.write(
+                        f"INSERT OR REPLACE INTO stations (station_number, name, capacity, address, geo_long, geo_lat, connected, last_updated) VALUES ({row['station_number']}, '{row['name'].replace(chr(39), chr(39) + chr(39))}', {row['capacity']}, '{(row['address'] or '').replace(chr(39), chr(39) + chr(39))}', {row['geo_long']}, {row['geo_lat']}, {row['connected']}, '{row['last_updated']}');\n")
+                f.write("\n")
+
+            cursor.execute("""
+                           SELECT *
+                           FROM bikes
+                           WHERE date(created_at) <= date(?)
+                           """, (day_end,))
+            bikes = cursor.fetchall()
+
+            if bikes:
+                f.write("-- Vélos\n")
+                for row in bikes:
+                    f.write(
+                        f"INSERT OR REPLACE INTO bikes (bike_id, number, status, created_at, last_updated) VALUES ('{row['bike_id']}', {row['number']}, '{row['status']}', '{row['created_at']}', '{row['last_updated']}');\n")
+                f.write("\n")
+
+            cursor.execute("""
+                           SELECT *
+                           FROM station_history
+                           WHERE timestamp >= ?
+                             AND timestamp <= ?
+                           """, (day_start, day_end))
+            history = cursor.fetchall()
+
+            if history:
+                f.write("-- Historique des stations\n")
+                for row in history:
+                    f.write(
+                        f"INSERT INTO station_history (station_number, available_bikes, timestamp) VALUES ({row['station_number']}, {row['available_bikes']}, '{row['timestamp']}');\n")
+                f.write("\n")
+
+            cursor.execute("""
+                           SELECT *
+                           FROM bike_trips
+                           WHERE (start_time >= ? AND start_time <= ?)
+                              OR (end_time >= ? AND end_time <= ?)
+                           """, (day_start, day_end, day_start, day_end))
+            trips = cursor.fetchall()
+
+            if trips:
+                f.write("-- Trajets\n")
+                for row in trips:
+                    from_station = row['from_station_number'] if row['from_station_number'] else 'NULL'
+                    to_station = row['to_station_number'] if row['to_station_number'] else 'NULL'
+                    f.write(
+                        f"INSERT INTO bike_trips (bike_id, from_station_number, to_station_number, start_time, end_time) VALUES ('{row['bike_id']}', {from_station}, {to_station}, '{row['start_time']}', '{row['end_time']}');\n")
+
+        self.close()
+        return filepath
