@@ -6,7 +6,7 @@ STRATÉGIE:
        - 1 appel /stations → enregistre les infos stations en DB
        - 1 appel /bikes → initialise le cache (quels vélos sur quelle station)
 
-    2. Toutes les 60 secondes:
+    2. Toutes les 10 secondes:
        - 1 appel /station_status → récupère le nombre de vélos par station (temps réel)
        - Compare avec le cache pour détecter les stations qui ont changé
        - Pour chaque station modifiée: 1 appel /bikes?stationNumber=X
@@ -46,7 +46,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-POLL_INTERVAL = 60
+POLL_INTERVAL = 10
 HISTORY_INTERVAL = 300
 
 
