@@ -166,6 +166,26 @@ class Database:
         conn.commit()
         self.close()
 
+    def insert_station_history_batch(self, history_records: List[Tuple[int, int, datetime]]):
+        """Insère plusieurs enregistrements d'historique de station en batch
+
+        Args:
+            history_records: Liste de tuples (station_number, available_bikes, timestamp)
+        """
+        if not history_records:
+            return
+
+        conn = self.connect()
+        cursor = conn.cursor()
+
+        cursor.executemany("""
+            INSERT INTO station_history (station_number, available_bikes, timestamp)
+            VALUES (?, ?, ?)
+        """, history_records)
+
+        conn.commit()
+        self.close()
+
     def insert_movement(self, bike_id: str, station_number: int, movement_type: str, timestamp: datetime):
         """Enregistre un mouvement de vélo (ARRIVAL ou DEPARTURE)"""
         conn = self.connect()
