@@ -1,10 +1,11 @@
 from enum import Enum
-from typing import Union
+from typing import Optional, Union
+
 
 class BikeStatus(str, Enum):
     AVAILABLE = "AVAILABLE"
     AVAILABLE_IN_STOCK = "AVAILABLE_IN_STOCK"
-    TO_BE_REPAIRED = "TO_BE_REPAIRED"
+    TO_BE_REPARED = "TO_BE_REPARED"
     NOT_RECOGNIZED = "NOT_RECOGNIZED"
     MAINTENANCE = "MAINTENANCE"
     STOLEN = "STOLEN"
@@ -26,11 +27,11 @@ class BikeStatus(str, Enum):
 
 class Bike:
 
-    def __init__(self, bike_id: str, number: int, status: Union[BikeStatus, str], created_at: str = ""):
+    def __init__(self, bike_id: str, number: int, status: Optional[Union[BikeStatus, str]] = None):
         self.id = bike_id
         self.number = number
+        # status gardé en mémoire (cache) mais pas stocké en DB
         self.status = BikeStatus.from_str(status) if isinstance(status, str) else status
-        self.created_at = created_at
 
     def __str__(self):
-        return f"Bike(id='{self.id}', number={self.number}, status='{self.status}', created_at='{self.created_at}')"
+        return f"Bike(id='{self.id}', number={self.number}, status='{self.status}')"

@@ -3,10 +3,6 @@ import time
 import requests
 from typing import Dict, List, Optional, Any
 
-from src.objects.bike import Bike
-from src.objects.station import Station
-from src.scrapper.database import Database
-
 
 class API:
     """Classe pour gérer les appels à l'API Bicloo"""

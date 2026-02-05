@@ -11,7 +11,7 @@ def register_bikes(api: API, database: Database) -> None:
         velo = Bike(
             bike_id=bike_data['id'],
             number=bike_data['number'],
-            created_at=bike_data['createdAt']
+            status=bike_data['status']
         )
         bikes.append(velo)
     database.upsert_bikes(bikes)
@@ -37,7 +37,7 @@ def register_stations(api: API, database: Database) -> None:
 
 def run():
     api= API()
-    database=Database("/home/marius/Documents/Development/Python/TIPE-BSSR/scrapper.sql", True)
+    database=Database("/home/marius/PycharmProjects/TIPE-BSSR/data/scrapper.sql", True)
 
     register_stations(api, database)
     register_bikes(api, database)
@@ -45,4 +45,5 @@ def run():
     database.close()
 
 if __name__ == "__main__":
+    print("Lancement du scrapper...")
     run()
