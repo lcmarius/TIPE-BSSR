@@ -8,11 +8,16 @@ Created on Wed Feb  4 22:19:45 2026
 import numpy as np
 from scipy.stats import skellam
 
+#Les deux variables aléatoires lambda1 et lambda2 sont elles potentiellement corréllées ?
+
+#L'ecart max entre les deux variables pour que la loi ne renvoie pas juste le max où 0 dépend de la capatité d'une station : capacite/2
+
 #Paramètres bidons
-capacity = 8     # capacité de la station
-lambda1 = 20      # retours moyens sur un intervalle de temp dt
-lambda2 = 40     # demandes moyenne sur un intervalle de temp dt
-beta_empty = 3.0  # pénalité rupture (si on veut on peut mettre la rupture plus relou que le fait que ce soit plein)
+capacity = 18    # capacité de la station
+
+lambda1 = 2      # retours moyens sur un intervalle de temp dt
+lambda2 = 4    # demandes moyenne sur un intervalle de temp dt
+beta_empty = 2.0  # pénalité rupture (si on veut on peut mettre la rupture plus relou que le fait que ce soit plein)
 beta_full = 1.0   # pénalité station pleine
 support = 25      # support de la loi de Skellam (valeur possible de la variable aléatoire à laquelle on met des limites pour pas avoir a calculer entre -inf et +inf)
 
@@ -37,7 +42,6 @@ def expected_penalty(b_t):
 
     Z = 0.0
     for b, p in zip(stocks, probs): #zip pour parcourir deux tableaux en meme temps
-        print(b)
         Z += p * penalty(b, capacity, beta_empty, beta_full) #revoir cette ligne peut-etre, j'ai un doute si elle suit bien la loi de Skellam
 
     return Z
