@@ -12,7 +12,7 @@ from scipy.stats import skellam
 capacity = 8     # capacité de la station
 lambda1 = 20      # retours moyens sur un intervalle de temp dt
 lambda2 = 40     # demandes moyenne sur un intervalle de temp dt
-beta_empty = 3.0  # pénalité rupture (si on veut on peut mettre la rupture plus relou que le fait que ce soit plein)
+beta_empty = 2.0  # pénalité rupture (si on veut on peut mettre la rupture plus relou que le fait que ce soit plein)
 beta_full = 1.0   # pénalité station pleine
 support = 25      # support de la loi de Skellam (valeur possible de la variable aléatoire à laquelle on met des limites pour pas avoir a calculer entre -inf et +inf)
 
