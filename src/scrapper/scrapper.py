@@ -4,7 +4,10 @@ Scrapper - Collecte des mouvements de vélos en temps réel
 STRATÉGIE:
     1. Au démarrage: /stations + /station_status + /bikes → init DB + caches
     2. Toutes les 5s: /bikes → diff → mouvements + historique
-    3. Toutes les 5min: /station_status → recale counts officiels
+    3. Toutes les 5min: /station_status → audit (warning si drift, jamais d'écrasement)
+
+    Source de vérité unique: /bikes (tracking par ID individuel).
+    station_status sert uniquement à détecter une dérive du scrapper.
 
 USAGE:
     python -m src.main scrapper [--interval N] [--status-interval N] [--data-dir DIR] [--no-archive]
@@ -115,6 +118,31 @@ class Scrapper:
         self._record_history(list(self.station_counts.keys()))
         return True
 
+    def _audit_before_refresh(self):
+        """Compare counts trackés par /bikes vs counts officiels avant recalage."""
+        try:
+            status_data = get_station_status(self.api)
+        except Exception as e:
+            logger.warning(f"Erreur audit: {e}")
+            return
+
+        official = {int(s['station_id']): s['num_vehicles_available'] for s in status_data}
+        drifts = []
+
+        for sn in self.active_stations:
+            tracked = len(self.station_bikes.get(sn, set()))
+            off = official.get(sn, 0)
+            diff = tracked - off
+            if diff != 0:
+                drifts.append((self._station_label(sn), tracked, off, diff))
+
+        if drifts:
+            logger.warning(f"AUDIT: {len(drifts)} station(s) en dérive avant recalage:")
+            for label, tracked, off, diff in drifts:
+                logger.warning(f"  {label}: bikes_trackés={tracked}, officiel={off} (écart={diff:+d})")
+        else:
+            logger.info("AUDIT: aucune dérive")
+
     def _refresh_official_counts(self):
         status_data = get_station_status(self.api)
         self.station_counts = {
@@ -144,6 +172,7 @@ class Scrapper:
 
         if time.monotonic() - self.last_status_refresh >= self.status_interval:
             try:
+                self._audit_before_refresh()
                 self._refresh_official_counts()
                 logger.info(f"Counts officiels recalés ({len(self.active_stations)} stations)")
                 self._record_history(list(self.station_counts.keys()))
