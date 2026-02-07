@@ -1,5 +1,5 @@
 """
-Scrapper Bicloo - Collecte des mouvements de vélos en temps réel
+Scrapper - Collecte des mouvements de vélos en temps réel
 
 STRATÉGIE:
     1. Au démarrage: /stations + /station_status + /bikes → init DB + caches

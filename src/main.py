@@ -20,7 +20,7 @@ def main():
     parser = argparse.ArgumentParser(description="TIPE-BSSR")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    sp = subparsers.add_parser("scrapper", help="Lancer le scrapper Bicloo")
+    sp = subparsers.add_parser("scrapper", help="Lancer le scrapper")
     sp.add_argument("--interval", type=int, default=5,
                     help="Intervalle polling /bikes en secondes (défaut: 5)")
     sp.add_argument("--status-interval", type=int, default=300,

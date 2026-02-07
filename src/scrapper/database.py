@@ -24,6 +24,7 @@ class Database:
     """Gestion de la base de données SQLite pour le scraping Bicloo"""
 
     def __init__(self, db_path: str, clear: bool = False):
+        os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
         self._init_tables()
