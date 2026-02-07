@@ -1,6 +1,6 @@
 # TIPE BSSR (Bike-Sharing System Routing)
 
-Optimisation de tournées de véhicules pour le rééquilibrage du réseau de vélos en libre-service Bicloo (Nantes). Un camion de capacité limitée doit visiter les stations pour redistribuer les vélos, en minimisant la distance totale parcourue.
+Optimisation de tournées de véhicules pour le rééquilibrage du réseau de vélos en libre-service (Nantes). Un camion de capacité limitée doit visiter les stations pour redistribuer les vélos, en minimisant la distance totale parcourue.
 
 ## Utilisation
 
