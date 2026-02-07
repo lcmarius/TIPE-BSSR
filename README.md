@@ -18,4 +18,4 @@ Collecte les données en temps réel depuis l'API de Nantes Métropole (nombre d
 
 ## TODO
 
-- Analyser les donnés du scrapper pour voir si elle sont régulières et déterminer un bon interval de temps à utiliser pour le targeter (principe de l'intervalle de temps pour une loi de poisson), l'intervalle recommandé peut être différents selon la période de la journée.
+- Analyser les donnés du scrapper pour voir si elle sont régulières et déterminer un dt
