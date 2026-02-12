@@ -1,11 +1,16 @@
 import argparse
 import os
+from datetime import date
 
-from src.scrapper.database import archive_db
-from src.scrapper.scrapper import Scrapper
+
+def cmd_postprocess(args):
+    from src.scrapper.postprocess import run_postprocess
+    run_postprocess(args.db_path, date.fromisoformat(args.date), args.output_dir)
 
 
 def cmd_scrapper(args):
+    from src.scrapper.database import archive_db
+    from src.scrapper.scrapper import Scrapper
     db_path = os.path.join(args.data_dir, "current.sql")
     if args.archive:
         archive_db(db_path)
@@ -30,6 +35,12 @@ def main():
     sp.add_argument("--no-archive", dest="archive", action="store_false",
                     help="Ne pas archiver la session précédente")
     sp.set_defaults(func=cmd_scrapper)
+
+    sp_pp = subparsers.add_parser("postprocess", help="Nettoyage données pour un jour")
+    sp_pp.add_argument("db_path")
+    sp_pp.add_argument("--date", required=True)
+    sp_pp.add_argument("--output-dir", default=None)
+    sp_pp.set_defaults(func=cmd_postprocess)
 
     args = parser.parse_args()
     args.func(args)

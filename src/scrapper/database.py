@@ -57,6 +57,7 @@ class Database:
                 station_number INTEGER NOT NULL,
                 movement_type TEXT NOT NULL,
                 timestamp DATETIME NOT NULL,
+                source TEXT NOT NULL DEFAULT 'USER',
                 FOREIGN KEY (bike_id) REFERENCES bikes(bike_id),
                 FOREIGN KEY (station_number) REFERENCES stations(station_number)
             )
@@ -115,10 +116,10 @@ class Database:
         """, [(b.id, b.number) for b in bikes])
         self.conn.commit()
 
-    def insert_movements_batch(self, movements: List[Tuple[str, int, str, datetime]]):
+    def insert_movements_batch(self, movements: List[Tuple[str, int, str, datetime, str]]):
         self.conn.executemany("""
-            INSERT INTO bike_movements (bike_id, station_number, movement_type, timestamp)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO bike_movements (bike_id, station_number, movement_type, timestamp, source)
+            VALUES (?, ?, ?, ?, ?)
         """, movements)
         self.conn.commit()
 

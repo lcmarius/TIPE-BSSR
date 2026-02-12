@@ -1,19 +1,3 @@
-"""
-Scrapper - Collecte des mouvements de vélos en temps réel
-
-STRATÉGIE:
-    1. Au démarrage: /stations + /station_status + /bikes → init DB + caches
-    2. Toutes les 5s: /bikes → diff → mouvements + historique
-    3. Toutes les 5min: /station_status → audit (warning si drift, jamais d'écrasement)
-
-    Source de vérité unique: /bikes (tracking par ID individuel).
-    station_status sert uniquement à détecter une dérive du scrapper.
-
-USAGE:
-    python -m src.main scrapper [--interval N] [--status-interval N] [--data-dir DIR] [--no-archive]
-    Ctrl+C pour arrêter proprement
-"""
-
 import signal
 import logging
 import time
@@ -32,6 +16,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+MAINTENANCE_STATUSES = frozenset(('MAINTENANCE', 'TO_BE_REPARED', 'MAINTENANCE_HEAVY'))
+
+
 class Scrapper:
 
     def __init__(self, db_path: str = "data/current.sql",
@@ -44,6 +31,7 @@ class Scrapper:
         self.stations: Dict[int, Station] = {}
         self.station_counts: Dict[int, int] = {}
         self.station_bikes: Dict[int, Set[str]] = {}
+        self.bike_statuses: Dict[str, str] = {}
         self.known_bikes: Set[str] = set()
         self.active_stations: Set[int] = set()
         self.last_status_refresh: float = 0.0
@@ -79,6 +67,14 @@ class Scrapper:
         s = self.stations.get(sn)
         return s.name if s else f"#{sn}"
 
+    @staticmethod
+    def _classify_source(status: str) -> str:
+        if status == 'REGULATION':
+            return 'TRUCK'
+        if status in MAINTENANCE_STATUSES:
+            return 'MAINTENANCE'
+        return 'USER'
+
     def _init_stations(self):
         data = get_stations(self.api)
         for s in data:
@@ -100,12 +96,13 @@ class Scrapper:
     def _init_bikes(self) -> bool:
         try:
             self._refresh_official_counts()
-            snapshot, details = self._fetch_bike_snapshot()
+            snapshot, details, all_statuses = self._fetch_bike_snapshot()
         except Exception as e:
             logger.error(f"Erreur init: {e}")
             return False
 
         self.station_bikes = snapshot
+        self.bike_statuses = all_statuses
         self.known_bikes = set(details.keys())
 
         all_bikes = [Bike(bid, b.get('number', 0)) for bid, b in details.items()]
@@ -119,7 +116,6 @@ class Scrapper:
         return True
 
     def _audit_before_refresh(self):
-        """Compare counts trackés par /bikes vs counts officiels avant recalage."""
         try:
             status_data = get_station_status(self.api)
         except Exception as e:
@@ -152,20 +148,24 @@ class Scrapper:
         self.active_stations = set(self.station_counts.keys())
         self.last_status_refresh = time.monotonic()
 
-    def _fetch_bike_snapshot(self) -> Tuple[Dict[int, Set[str]], Dict[str, dict]]:
+    def _fetch_bike_snapshot(self) -> Tuple[Dict[int, Set[str]], Dict[str, dict], Dict[str, str]]:
         bikes_data = get_bikes(self.api)
 
         snapshot: Dict[int, Set[str]] = {sn: set() for sn in self.active_stations}
         details: Dict[str, dict] = {}
+        all_statuses: Dict[str, str] = {}
 
         for b in bikes_data:
             bike_id = b.get('id')
+            if not bike_id:
+                continue
+            all_statuses[bike_id] = b.get('status', 'UNKNOWN')
             sn = b.get('stationNumber')
-            if bike_id and sn and sn in self.active_stations:
+            if sn and sn in self.active_stations:
                 snapshot[sn].add(bike_id)
                 details[bike_id] = b
 
-        return snapshot, details
+        return snapshot, details, all_statuses
 
     def _execute_cycle(self):
         now = datetime.now()
@@ -179,7 +179,7 @@ class Scrapper:
             except Exception as e:
                 logger.warning(f"Erreur refresh status: {e}")
 
-        snapshot, details = self._fetch_bike_snapshot()
+        snapshot, details, current_statuses = self._fetch_bike_snapshot()
 
         movements = []
         new_bikes = []
@@ -199,18 +199,19 @@ class Scrapper:
             label = self._station_label(sn)
 
             for bike_id in arrived:
-                movements.append((bike_id, sn, 'ARRIVAL', now))
+                source = self._classify_source(self.bike_statuses.get(bike_id, 'UNKNOWN'))
+                movements.append((bike_id, sn, 'ARRIVAL', now, source))
                 self.station_counts[sn] = self.station_counts.get(sn, 0) + 1
-                num = details[bike_id].get('number', '?')
-                logger.info(f"ARRIVAL  vélo {num} ({bike_id[:8]}) → {label}")
+                logger.info(f"ARRIVAL  vélo {details[bike_id].get('number', '?')} ({bike_id[:8]}) → {label} [{source}]")
                 if bike_id not in self.known_bikes:
                     new_bikes.append(Bike(bike_id, details[bike_id].get('number', 0)))
                     self.known_bikes.add(bike_id)
 
             for bike_id in departed:
-                movements.append((bike_id, sn, 'DEPARTURE', now))
+                source = self._classify_source(current_statuses.get(bike_id, 'UNKNOWN'))
+                movements.append((bike_id, sn, 'DEPARTURE', now, source))
                 self.station_counts[sn] = max(0, self.station_counts.get(sn, 0) - 1)
-                logger.info(f"DEPARTURE vélo ({bike_id[:8]}) ← {label}")
+                logger.info(f"DEPARTURE vélo ({bike_id[:8]}) ← {label} [{source}]")
 
         if movements:
             self.db.insert_movements_batch(movements)
@@ -220,9 +221,9 @@ class Scrapper:
             self._record_history(changed_stations)
 
         self.station_bikes = snapshot
+        self.bike_statuses = current_statuses
 
     def _record_history(self, stations: List[int]):
         records = [(sn, self.station_counts.get(sn, 0), datetime.now()) for sn in stations]
         if records:
             self.db.insert_station_history_batch(records)
-
