@@ -99,7 +99,7 @@ def run_postprocess(db_path: str, jour: date, output_dir: str | None = None):
 
     output_dir = output_dir or os.path.dirname(db_path) or "."
     os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, f"clean_{jour.isoformat()}.db")
+    output_path = os.path.join(output_dir, f"clean_{jour.isoformat()}.sql")
 
     nb_interpolated, nb_orphans, nb_non_user = _clean_db(db_path, jour, output_path)
 
