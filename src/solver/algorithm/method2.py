@@ -69,7 +69,7 @@ def method2(graph: SolvingStationGraph, capacite: int):
             if nearest_deficit is None:
                 break
 
-            if current_station.distance_to(nearest_deficit) < current_station.distance_to(next_station):
+            if graph.get_distance(current_station, nearest_deficit) < graph.get_distance(current_station, next_station):
                 besoin = -remaining_gap[nearest_deficit.number]
                 camion -= besoin
                 remaining_gap[nearest_deficit.number] = 0

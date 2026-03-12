@@ -5,6 +5,7 @@ from src.solver.algorithm.opt import opt2, opt3
 from src.solver.graph import SolvingStationGraph
 from enum import Enum
 
+from src.solver.map import Map
 from src.solver.reviewer import SolutionMetrics, review_solution
 
 
@@ -16,18 +17,19 @@ class SolvingAlgorithmImprover(Enum):
     OPT_2 = 1
     OPT_3 = 2
 
-def create_graph(stations: list[TargetedStation], depot_station: Station) -> SolvingStationGraph:
+def create_graph(stations: list[TargetedStation], depot_station: Station, map: Map) -> SolvingStationGraph:
     """
     Crée un graphe à partir d'une liste de stations
     :param stations: Liste de stations avec leurs objectifs et score actuel
     :param depot_station: Station correspondant au dépot
     :return: Le graphe nécessaire pour résoudre le problème
     """
-    graph = SolvingStationGraph(depot_station)
+    graph = SolvingStationGraph(map, depot_station)
 
     for station in stations:
         if station.bike_gap() != 0:
             graph.add_station(station)
+
 
 
 
@@ -65,6 +67,10 @@ def solve(graph: SolvingStationGraph, capacity: int,
     :param improver_max_iterations: Nombre maximum d'itérations pour chaque algorithme d'amélioration
     :return: None (le graphe est modifié en place pour contenir la solution
     """
+
+    print("Preloading distances...")
+    graph.preload_distances()
+    print("Distances preloaded.")
 
     if builder == SolvingAlgorithmBuilder.METHOD_1:
         method1(graph, capacity)

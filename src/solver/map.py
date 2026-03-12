@@ -3,10 +3,6 @@ import os
 import networkx as nx
 import osmnx as ox
 from datetime import datetime
-from networkx.classes import Graph
-
-from src.solver.algorithm.opt import get_distance
-
 
 def locate_sources(sources_files):
     return os.path.exists(sources_files)
@@ -81,9 +77,13 @@ class Map:
         self.city = city
 
         if locate_sources(sources_file):
+            print("Resource loading...")
             self.graph = load_sources(sources_file)
+            print("Resource loaded from file:", sources_file)
         else:
+            print("Resource not found, generating new graph map...")
             self.graph = generate_sources(sources_file, city)
+            print("Resource generated and saved to file:", sources_file)
         self.created_at = self.graph.graph.get('creation_date', 'unknown')
 
     def get_time(self, fr: GeoPoint, to: GeoPoint) -> float:
@@ -97,6 +97,8 @@ class Map:
             weight='travel_time'
         )
 
+
+
     def get_distance(self, fr: GeoPoint, to: GeoPoint) -> float:
         origine_node = ox.nearest_nodes(self.graph, X=fr.longitude, Y=fr.latitude)
         destination_node = ox.nearest_nodes(self.graph, X=to.longitude, Y=to.latitude)
@@ -107,7 +109,6 @@ class Map:
             target=destination_node,
             weight='length'
         )
-
 
 def test():
     map = Map("nantes_graph.graphml", city="Nantes Métropole, France")

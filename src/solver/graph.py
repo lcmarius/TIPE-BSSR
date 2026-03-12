@@ -2,16 +2,18 @@ from typing import Dict, List, Tuple, Optional
 
 
 from src.objects.station import TargetedStation, Station
-
+from src.solver.map import Map, GeoPoint
 
 
 class SolvingStationGraph:
     """Directed unweighted graph for Station solving"""
 
-    def __init__(self, depot_station: Station):
+    def __init__(self, map: Map, depot_station: Station):
         self.successors: Dict[int, int | None] = {}  # station_number -> [successor_station_number | None]
         self.predecessors: Dict[int, int | None] = {}  # station_number -> [predecessor_station_number | None]
         self.station_map: Dict[int, TargetedStation] = {}  # station_number -> Station object
+        self.map = map # Map pour calculer les distances et temps entre stations
+        self.map_cache_distance = {} # station_number1 -> station_number2 -> distance
 
         assert depot_station.number == 0, "Depot must have number 0"
         self.add_station(TargetedStation.from_station(depot_station, 0, 0))
@@ -28,6 +30,15 @@ class SolvingStationGraph:
         if not self.has_station(station_number):
             raise Exception(f"Station {station_number} does not exist")
         return self.station_map[station_number]
+
+    def get_distance(self, s1: Station, s2: Station) -> float:
+        if s1.number in self.map_cache_distance and s2.number in self.map_cache_distance[s1.number]:
+            return self.map_cache_distance[s1.number][s2.number]
+        distance = self.map.get_distance(GeoPoint(s1.lat, s1.long), GeoPoint(s2.lat, s2.long))
+        if s1.number not in self.map_cache_distance:
+            self.map_cache_distance[s1.number] = {}
+        self.map_cache_distance[s1.number][s2.number] = distance
+        return distance
 
     def list_stations(self) -> List[TargetedStation]:
         return list(self.station_map.values())
@@ -109,12 +120,23 @@ class SolvingStationGraph:
         reference_station = self.get_station(station_number)
 
         candidates = [
-            (reference_station.distance_to(s), s)
+            (self.get_distance(reference_station, s), s)
             for s in self.list_stations()
             if s.number != station_number and condition(s)
         ]
 
         return min(candidates, key=lambda x: x[0])[1] if candidates else None
+
+    def preload_distances(self):
+        """
+        Précharge les distances entre toutes les paires de stations pour accélérer les calculs ultérieurs.
+        """
+        stations = self.list_stations()
+        for s1 in stations:
+            self.map_cache_distance[s1.number] = {}
+            for s2 in stations:
+                if s1.number != s2.number:
+                    self.map_cache_distance[s1.number][s2.number] = self.get_distance(s1, s2)
 
     def render(self, output_file: str = "graph.png", title: str = "Graphe title"):
         """
@@ -178,7 +200,7 @@ class SolvingStationGraph:
 
 def test():
     s0 = Station(0, "Station init", 1, "Addr 1", -1.5, 47.2)
-    g = SolvingStationGraph(s0)
+    g = SolvingStationGraph(None, s0)
 
     s1 = TargetedStation(1, "Station 1", 10, "Addr 1", -1.5, 47.2, 5, 8)
     s2 = TargetedStation(2, "Station 2", 10, "Addr 2", -1.6, 47.3, 7, 4)

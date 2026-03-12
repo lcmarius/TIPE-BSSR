@@ -5,18 +5,18 @@ Amélioration de solution OPT-2
 from src.solver.graph import SolvingStationGraph
 
 
-def get_distance(graph: SolvingStationGraph, distance_cache, id1: int, id2: int) -> float:
+def get_distance(graph: SolvingStationGraph, id1: int, id2: int) -> float:
     """Calcule la distance entre deux stations avec memoization"""
-    if (id1, id2) not in distance_cache:
-        distance_cache[(id1, id2)] = graph.get_station(id1).distance_to(graph.get_station(id2))
-    return distance_cache[(id1, id2)]
+    s1=graph.get_station(id1)
+    s2=graph.get_station(id2)
+    return graph.get_distance(s1, s2)
 
 
-def calculate_total_distance(graph: SolvingStationGraph, distance_cache, tour: list[int]) -> float:
+def calculate_total_distance(graph: SolvingStationGraph, tour: list[int]) -> float:
     """Calcule la distance totale d'un tour"""
     total = 0.0
     for i in range(len(tour) - 1):
-        total += get_distance(graph, distance_cache, tour[i], tour[i + 1])
+        total += get_distance(graph, tour[i], tour[i + 1])
     return total
 
 def opt2(graph: SolvingStationGraph, vehicle_capacity: int, max_iterations: int = 1000):
@@ -32,17 +32,21 @@ def opt2(graph: SolvingStationGraph, vehicle_capacity: int, max_iterations: int 
 
     turn = get_turn(graph)
     n = len(turn)
-    distance_cache = {}
-
 
     def try_improve() -> list[int] | None:
         """Cherche une amélioration, retourne le nouveau tour ou None"""
         for i in range(1, n - 2):
             for j in range(i + 1, n - 1):
-                current_dist = get_distance(graph, distance_cache, turn[i - 1], turn[i]) + get_distance(graph, distance_cache, turn[j], turn[j + 1])
-                new_dist = get_distance(graph, distance_cache, turn[i - 1], turn[j]) + get_distance(graph, distance_cache, turn[i], turn[j + 1])
+                # Coût du segment turn[i-1] → ... → turn[j+1] avant inversion
+                old_cost = sum(get_distance(graph, turn[k], turn[k + 1]) for k in range(i - 1, j + 1))
 
-                if new_dist < current_dist:
+                # Coût après inversion du segment [i, j] :
+                # turn[i-1] → turn[j] → turn[j-1] → ... → turn[i] → turn[j+1]
+                new_cost = get_distance(graph, turn[i - 1], turn[j])
+                new_cost += sum(get_distance(graph, turn[k], turn[k - 1]) for k in range(j, i, -1))
+                new_cost += get_distance(graph, turn[i], turn[j + 1])
+
+                if new_cost < old_cost:
                     new_turn = turn[:i] + turn[i:j + 1][::-1] + turn[j + 1:]
                     if is_turn_feasible(graph, new_turn, vehicle_capacity):
                         return new_turn
@@ -85,10 +89,9 @@ def opt3(graph: SolvingStationGraph, vehicle_capacity: int, max_iterations: int 
 
     turn = get_turn(graph)
     n = len(turn)
-    distance_cache = {}
 
     def try_improve() -> list[int] | None:
-        current_total_dist = calculate_total_distance(graph, distance_cache, turn)
+        current_total_dist = calculate_total_distance(graph, turn)
 
         for i in range(1, n - 3):
             for j in range(i + 2, n - 2):
@@ -100,7 +103,7 @@ def opt3(graph: SolvingStationGraph, vehicle_capacity: int, max_iterations: int 
                     best_dist = current_total_dist
 
                     for new_turn in reconnections:
-                        new_dist = calculate_total_distance(graph, distance_cache, new_turn)
+                        new_dist = calculate_total_distance(graph, new_turn)
 
                         if new_dist < best_dist and is_turn_feasible(graph, new_turn, vehicle_capacity):
                             best_dist = new_dist
