@@ -15,6 +15,7 @@ from scipy.stats import skellam
 #Paramètres bidons
 capacity = 18    # capacité de la station
 
+#max(λ1, λ2) < capacité/3
 lambda1 = 2      # retours moyens sur un intervalle de temp dt
 lambda2 = 4    # demandes moyenne sur un intervalle de temp dt
 beta_empty = 2.0  # pénalité rupture (si on veut on peut mettre la rupture plus relou que le fait que ce soit plein)
