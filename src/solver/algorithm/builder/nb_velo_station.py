@@ -15,9 +15,8 @@ from scipy.stats import skellam
 #Paramètres bidons
 capacity = 18    # capacité de la station
 
-#max(λ1, λ2) < capacité/3
-lambda1 = 2      # retours moyens sur un intervalle de temp dt
-lambda2 = 4    # demandes moyenne sur un intervalle de temp dt
+lambda1 = 5     # retours moyens sur un intervalle de temp dt
+lambda2 = 7    # demandes moyenne sur un intervalle de temp dt
 beta_empty = 2.0  # pénalité rupture (si on veut on peut mettre la rupture plus relou que le fait que ce soit plein)
 beta_full = 1.0   # pénalité station pleine
 support = 25      # support de la loi de Skellam (valeur possible de la variable aléatoire à laquelle on met des limites pour pas avoir a calculer entre -inf et +inf)
@@ -63,6 +62,7 @@ b_star = min(Z_values, key=Z_values.get)
 
 #tableau récap
 print("===== TABLEAU DES PÉNALITÉS =====")
+print("=====        SKELLAM        =====")
 for b in range(capacity + 1):
     marker = " <--- OPTIMAL" if b == b_star else ""
     print(f"b = {b:2d}  |  Z = {Z_values[b]:.4f}{marker}")
