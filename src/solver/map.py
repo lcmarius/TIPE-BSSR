@@ -1,3 +1,50 @@
+# =============================================================================
+# Modélisation du réseau routier pour le calcul de distances et temps de trajet
+# =============================================================================
+#
+# Hypothèses de modélisation :
+#
+#   H1 – Graphe routier statique
+#       Le réseau routier est extrait d'OpenStreetMap via OSMnx et considéré
+#       comme fixe dans le temps. On ne modélise pas les variations dynamiques
+#       (travaux, routes fermées, embouteillages en temps réel).
+#
+#   H2 – Pas de variabilité temporelle du trafic
+#       Les temps de parcours sont identiques quelle que soit l'heure de la
+#       journée (pas de distinction heure de pointe / heures creuses).
+#       Justification : le rééquilibrage s'effectue typiquement tôt le matin
+#       ou en journée creuse, quand le trafic est relativement stable.
+#
+#   H3 – Facteurs de réduction de vitesse par type de voie
+#       Les vitesses maximales autorisées (fournies par OSM) sont réduites par
+#       un coefficient dépendant du type de route pour refléter les conditions
+#       réelles de circulation d'un camion utilitaire en milieu urbain :
+#           - motorway  : ×0.90  (flux fluide, peu d'arrêts)
+#           - trunk     : ×0.85
+#           - primary   : ×0.75  (feux, intersections fréquentes)
+#           - secondary : ×0.70
+#           - tertiary  : ×0.65
+#           - residential : ×0.60 (stops, stationnement, manœuvres)
+#           - autres    : ×0.70  (valeur prudente par défaut)
+#       Justification : ces ordres de grandeur sont cohérents avec les études
+#       de vitesse moyenne en milieu urbain (rapport CEREMA 2018, données TomTom
+#       Traffic Index) qui montrent qu'en ville la vitesse effective représente
+#       60-80 % de la vitesse autorisée selon le type de voie.
+#
+#   H4 – Pénalité fixe aux feux tricolores (+15 s)
+#       Chaque passage par un nœud identifié comme feu de signalisation dans
+#       OSM ajoute 15 secondes au temps de parcours.
+#       Justification : le temps d'attente moyen à un feu urbain est estimé
+#       entre 15 et 30 secondes (Webster, 1958 ; données empiriques CERTU).
+#       On retient la borne basse car le camion ne s'arrête pas à chaque feu.
+#
+#   H5 – Plus court chemin (Dijkstra)
+#       Le trajet entre deux stations est calculé comme le plus court chemin
+#       sur le graphe routier pondéré. On suppose que le conducteur suit
+#       toujours l'itinéraire optimal, sans détours ni erreurs de navigation.
+#
+# =============================================================================
+
 import os
 
 import networkx as nx
