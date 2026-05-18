@@ -51,11 +51,7 @@ Pipeline en quatre étapes : tronquer au jour, filtrer par source, interpoler le
 
 ## TODO
 
-- Analyser la régularité des données du scrapper et déterminer un `dt` adapté.
-- Brancher `targeter/nb_velo_station.py` sur les `bike_movements` USER pour estimer empiriquement les `λ_in` / `λ_out` par station × créneau horaire.
-- Écrire `targeter/targeter.py` qui consomme `nb_velo_station.compute_target` et ajuste les `bike_target` obtenus pour respecter les contraintes d'entrée du solver (`Σ bike_gap = 0` et `|bike_gap| ≤ q/2`).
-- Câblage complet `scrapper → targeter → solver` (entrée du solver = `TargetedStation` avec `bike_target` calculé).
 - Critiquer les résultats et la démarche : impact des approximations successives (indépendance Poisson, troncature de Skellam, vitesses OSM réduites, heuristiques d'approximation au lieu d'une résolution exacte) sur la qualité de la tournée.
-- Comparer la tournée calculée avec la tournée réelle du camion Bicloo (mouvements `source='TRUCK'` reconstitués à partir des données scrappées) : différence de distance, de durée, de stations visitées.
 - Ajouter ref bibliographique :  Bräysy, O. & Gendreau, M. (2005). Vehicle Routing Problem with Time Windows, Part I: Route Construction and Local Search Algorithms. Transportation Science 39(1), 104-118.
 - Ajouter ref bibliographique : Lourenço, H. R., Martin, O. C. & Stützle, T. (2003). Iterated Local Search. In F. Glover & G. Kochenberger (eds.), Handbook of Metaheuristics, vol. 57, pp. 320–353. Kluwer Academic.
+- Ajouter ref bibliographique : Federgruen, A. & Groenevelt, H. (1986). The greedy procedure for resource allocation problems: necessary and sufficient conditions for optimality. Operations Research, 34(6), 909–918. (justifie l'optimalité du glouton dans `targeter/targeter.py`)
