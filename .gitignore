@@ -214,8 +214,6 @@ __marimo__/
 # TIPE-BSSR — artefacts générés (régénérables)
 # Cache osmnx Overpass (redondant avec data/*.graphml et data/*.geojson)
 cache/
-# PNG produits par demo_render / demo_stats
-renders/
 # Graphe routier OSM (téléchargé/généré)
 data/nantes_graph.graphml
 # Hydrographie OSM (téléchargée/générée)
