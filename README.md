@@ -1,7 +1,5 @@
 # TIPE BSSR — Bike-Sharing System Routing
 
-Projet TIPE 2025-2026 (candidat n° 10395, en binôme avec CHUTO Evan).
-
 ## Problématique
 
 Un camion de capacité limitée parcourt les stations Bicloo de Nantes pour rééquilibrer les vélos disponibles : il en prélève là où il y a un surplus pour les déposer là où il y a un déficit. On cherche la tournée qui minimise le temps total de redistribution.
