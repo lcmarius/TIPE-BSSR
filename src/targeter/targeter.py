@@ -22,7 +22,8 @@ class InfeasibleInstance(Exception):
     """Un seul camion ne peut pas rééquilibrer le réseau dans ce créneau."""
 
 def compute_adjusted_targets(stations: list[Station], bike_counts: dict[int, int],
-                              when: datetime, q: int) -> list[TargetedStation]:
+                              when: datetime, q: int,
+                              clean_dir: str = "data/clean") -> list[TargetedStation]:
     """Calcule les cibles de vélos à chaque station, en ajustant les cibles optimales isolées pour respecter les contraintes globales du problème."""
     half = q // 2
     valid_stations, current, penalty, low, high = [], [], [], [], []
@@ -34,7 +35,7 @@ def compute_adjusted_targets(stations: list[Station], bike_counts: dict[int, int
 
         valid_stations.append(station)
         current.append(c)
-        penalty.append(compute_target(station.capacity, *predict_lambdas(station.number, when)))
+        penalty.append(compute_target(station.capacity, *predict_lambdas(station.number, when, clean_dir)))
         low.append(max(0, c - half + 1))
         high.append(min(station.capacity, c + half - 1))
 
@@ -58,5 +59,9 @@ def compute_adjusted_targets(stations: list[Station], bike_counts: dict[int, int
         target[best_candidat] += direction
         total_gap += direction
 
-    return [TargetedStation.from_station(valid_stations[i], current[i], target[i]) for i in range(len(valid_stations))]
+    targeted_stations = []
+    for s in range(len(valid_stations)):
+        if current[s] != target[s]:
+            targeted_stations.append(TargetedStation.from_station(valid_stations[s], current[s], target[s]))
 
+    return targeted_stations
