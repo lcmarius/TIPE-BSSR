@@ -9,6 +9,16 @@
 # rééquilibrage glouton un cran à la fois vers la station de coût marginal le
 # plus faible. L'optimum global est garanti par la convexité de f
 # (Federgruen-Groenevelt 1986).
+#
+# Mécanisme de réserve : une visite camion coûte plusieurs minutes alors que
+# la pénalité Skellam d'un écart de 1 vélo est minime — et un tel écart est
+# typiquement dans le bruit d'estimation des λ (SE ≈ √λ/√n_jours). On évite
+# donc ces visites quand C1 peut être bouclé sans elles.
+#
+# En pratique, les stations dont |b*_i − c_i| ≤ reservoir_threshold sont
+# placées en réserve (target = count par défaut). Elles ne sont mobilisées
+# dans la fermeture de C1 que si les stations à correction substantielle ne
+# suffisent pas — la réserve sert de soupape garantissant C1 globalement.
 # =============================================================================
 
 from datetime import datetime
@@ -23,7 +33,8 @@ class InfeasibleInstance(Exception):
 
 def compute_adjusted_targets(stations: list[Station], bike_counts: dict[int, int],
                               when: datetime, q: int,
-                              clean_dir: str = "data/clean") -> list[TargetedStation]:
+                              clean_dir: str = "data/clean",
+                              reservoir_threshold: int = 1) -> list[TargetedStation]:
     """Calcule les cibles de vélos à chaque station, en ajustant les cibles optimales isolées pour respecter les contraintes globales du problème."""
     half = q // 2
     valid_stations, current, penalty, low, high = [], [], [], [], []
@@ -39,22 +50,43 @@ def compute_adjusted_targets(stations: list[Station], bike_counts: dict[int, int
         low.append(max(0, c - half + 1))
         high.append(min(station.capacity, c + half - 1))
 
-    target = []
+    # Cible Skellam isolée, clipée par C2
+    target_skellam = []
     for s in range(len(valid_stations)):
         b_star = penalty[s].index(min(penalty[s]))
-        target.append(max(low[s], min(high[s], b_star)))
+        target_skellam.append(max(low[s], min(high[s], b_star)))
+
+    # Réserve : stations dont la correction isolée est <= seuil (en valeur
+    # absolue). Initialisées à target=count (skip), mobilisables uniquement
+    # en phase B de la fermeture C1.
+    reservoir = {s for s in range(len(valid_stations))
+                 if abs(target_skellam[s] - current[s]) <= reservoir_threshold}
+
+    target = [current[s] if s in reservoir else target_skellam[s]
+              for s in range(len(valid_stations))]
 
     total_gap = sum(target) - sum(current)
 
     while total_gap != 0:
         direction = -1 if total_gap > 0 else +1
-        candidates = [s for s, b in enumerate(target) if low[s] <= b + direction <= high[s]]
-        if not candidates:
-            raise InfeasibleInstance(f"déséquilibre δ={total_gap} bloqué par les bornes")
-
-        # On prend le candidat dont le changement de target est le moins pénalisant (coût marginal le plus faible)
         marginal_cost = lambda s: penalty[s][target[s] + direction] - penalty[s][target[s]]
-        best_candidat = min(candidates, key=marginal_cost)
+
+        # Phase A : ajuster d'abord les stations primary (hors réserve)
+        primary_candidates = [s for s, b in enumerate(target)
+                              if s not in reservoir and low[s] <= b + direction <= high[s]]
+        if primary_candidates:
+            best_candidat = min(primary_candidates, key=marginal_cost)
+        else:
+            # Phase B : la réserve s'active. On pioche la station dont
+            # l'ajustement vers count±1 est le moins pénalisant — typiquement
+            # celle dont la direction de C1 coïncide avec sa préférence
+            # Skellam (coût marginal alors négatif).
+            reservoir_candidates = [s for s in reservoir
+                                    if low[s] <= target[s] + direction <= high[s]]
+            if not reservoir_candidates:
+                raise InfeasibleInstance(f"déséquilibre δ={total_gap} bloqué par les bornes")
+            best_candidat = min(reservoir_candidates, key=marginal_cost)
+            reservoir.discard(best_candidat)
 
         target[best_candidat] += direction
         total_gap += direction

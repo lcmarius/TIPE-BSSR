@@ -8,8 +8,8 @@ découpage en cellules utilisé par le modèle Skellam du targeter :
   * seasonal_split.png   — combinaison des deux effets (synthèse 4 cellules)
 
 Usage :
-    python -m src.targeter.render
-    python -m src.targeter.render --split-date 2026-03-20
+    python -m renders.targeter_render
+    python -m renders.targeter_render --split-date 2026-03-20
 """
 
 import argparse
@@ -21,7 +21,6 @@ from datetime import date as date_cls, datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.stats import mannwhitneyu
 
 
 DEFAULT_CLEAN_DIR  = "data/clean"
@@ -73,7 +72,7 @@ def _render_single_dimension(movements: pd.DataFrame,
                               title: str | None,
                               source_filter: str | None) -> None:
     """Helper : trace 2 courbes superposées (1 par valeur du groupe) avec
-    bandes ±1σ + test Mann-Whitney sur les totaux journaliers.
+    bandes ±1σ et un encart résumant les totaux journaliers.
 
     `group_values` : liste de (valeur, label_lisible, couleur).
     Suppose que `movements[group_col]` est déjà calculé en amont par l'appelant.
@@ -96,7 +95,7 @@ def _render_single_dimension(movements: pd.DataFrame,
     fig, ax = plt.subplots(figsize=(11, 5))
     ax.set_facecolor("#fafafa")
 
-    means_by_value: dict[object, np.ndarray] = {}
+    daily_totals: dict[object, float] = {}
     for value, label, color in group_values:
         sub = counts[counts[group_col] == value]
         if sub.empty:
@@ -106,28 +105,23 @@ def _render_single_dimension(movements: pd.DataFrame,
                     .reindex(columns=range(24), fill_value=0))
         mean = pivot.mean(axis=0)
         std  = pivot.std(axis=0)
-        n_days = len(pivot)
         ax.fill_between(range(24), mean - std, mean + std,
                         color=color, alpha=0.18, linewidth=0)
         ax.plot(range(24), mean.values, color=color, lw=2.4,
-                label=f"{label} · {n_days} j", alpha=0.92)
-        means_by_value[value] = pivot.sum(axis=1).values  # totaux journaliers
+                label=label, alpha=0.92)
+        daily_totals[value] = pivot.sum(axis=1).mean()
 
-    # Test Mann-Whitney entre les 2 valeurs (s'il y en a 2).
-    if len(group_values) == 2 and all(v[0] in means_by_value for v in group_values):
-        a = means_by_value[group_values[0][0]]
-        b = means_by_value[group_values[1][0]]
-        if len(a) > 1 and len(b) > 1:
-            _, p = mannwhitneyu(a, b, alternative='two-sided')
-            ratio = b.mean() / a.mean() if a.mean() > 0 else float('inf')
-            ax.text(0.02, 0.97,
-                    f"Total / jour\n"
-                    f"  {group_values[0][1][:20]:20s} : {a.mean():.0f}\n"
-                    f"  {group_values[1][1][:20]:20s} : {b.mean():.0f}   ({(ratio - 1) * 100:+.0f}%)\n"
-                    f"Mann-Whitney : p = {p:.1e}",
-                    transform=ax.transAxes, ha='left', va='top', fontsize=9,
-                    family='monospace',
-                    bbox=dict(boxstyle='round,pad=0.5', facecolor='white',
+    if len(group_values) == 2 and all(v[0] in daily_totals for v in group_values):
+        (v0, lbl0, _), (v1, lbl1, _) = group_values[0], group_values[1]
+        t0, t1 = daily_totals[v0], daily_totals[v1]
+        if min(t0, t1) > 0:
+            if t0 >= t1:
+                hi_lbl, lo_lbl, delta = lbl0, lbl1, (t0 - t1) / t1 * 100
+            else:
+                hi_lbl, lo_lbl, delta = lbl1, lbl0, (t1 - t0) / t0 * 100
+            ax.text(0.02, 0.97, f"{hi_lbl} : +{delta:.0f}% vs {lo_lbl}",
+                    transform=ax.transAxes, ha='left', va='top', fontsize=10,
+                    bbox=dict(boxstyle='round,pad=0.4', facecolor='white',
                               edgecolor='#bbb', alpha=0.95))
 
     ax.set_xlabel("Heure de la journée")
@@ -158,8 +152,8 @@ def render_day_type_effect(movements: pd.DataFrame, output_file: str,
     df['day_type'] = np.where(df['timestamp'].dt.dayofweek >= 5, 'WE', 'ouvré')
     _render_single_dimension(
         df, 'day_type',
-        [('ouvré', "Jours ouvrés (Lun → Ven)",  '#1f4e79'),
-         ('WE',    "Week-end  (Sam + Dim)",     '#c14a09')],
+        [('ouvré', "Jours ouvrés", '#5a2d82'),
+         ('WE',    "Week-end",    '#2e7d32')],
         output_file=output_file,
         title=title or "Effet du type de jour sur la demande (saisons confondues)",
         source_filter=source_filter,
@@ -180,8 +174,8 @@ def render_season_effect(movements: pd.DataFrame, output_file: str,
         df['timestamp'].dt.date.astype('object') < split, 'froid', 'tempéré')
     _render_single_dimension(
         df, 'regime',
-        [('froid',   f"Régime froid (avant {split:%d %b %Y})",      '#1f4e79'),
-         ('tempéré', f"Régime tempéré (à partir du {split:%d %b %Y})", '#c14a09')],
+        [('froid',   "Régime froid",   '#1f4e79'),
+         ('tempéré', "Régime tempéré", '#c14a09')],
         output_file=output_file,
         title=title or "Effet de la saison sur la demande (jours confondus)",
         source_filter=source_filter,
@@ -194,8 +188,7 @@ def render_seasonal_split(movements: pd.DataFrame, output_file: str,
     """Compare deux régimes (avant/après équinoxe) sur 2 panneaux : ouvré + WE.
 
     Chaque courbe = moyenne ± 1σ des mouvements/heure pour le régime.
-    Test Mann-Whitney U sur les totaux journaliers pour juger de la
-    significativité statistique.
+    Un encart resume les totaux journaliers et l'ecart relatif.
     """
     df = movements.copy()
     if source_filter:
@@ -220,8 +213,8 @@ def render_seasonal_split(movements: pd.DataFrame, output_file: str,
     counts = counts.merge(date_meta, on='date')
 
     REGIME_COLORS = {'froid': '#1f4e79', 'tempéré': '#c14a09'}
-    REGIME_LABEL  = {'froid':   f"Régime froid (avant {split:%d %b %Y})",
-                     'tempéré': f"Régime tempéré (à partir du {split:%d %b %Y})"}
+    REGIME_LABEL  = {'froid':   "Régime froid",
+                     'tempéré': "Régime tempéré"}
 
     fig, (ax_wd, ax_we) = plt.subplots(1, 2, figsize=(14, 5.5), sharey=True)
     if title:
@@ -241,28 +234,25 @@ def render_seasonal_split(movements: pd.DataFrame, output_file: str,
                        .reindex(columns=range(24), fill_value=0))
             mean = pivot.mean(axis=0)
             std  = pivot.std(axis=0)
-            n_days = len(pivot)
             ax.fill_between(range(24), mean - std, mean + std,
                             color=REGIME_COLORS[regime], alpha=0.18, linewidth=0)
             ax.plot(range(24), mean.values,
                     color=REGIME_COLORS[regime], lw=2.4,
-                    label=f"{REGIME_LABEL[regime]} · {n_days} j", alpha=0.92)
+                    label=REGIME_LABEL[regime], alpha=0.92)
 
-        # Test Mann-Whitney sur les totaux journaliers.
         daily_totals = subset.groupby(['date', 'regime'])['count'].sum().reset_index()
         cold = daily_totals[daily_totals['regime'] == 'froid']['count'].values
         warm = daily_totals[daily_totals['regime'] == 'tempéré']['count'].values
-        if len(cold) > 1 and len(warm) > 1:
-            _, p = mannwhitneyu(cold, warm, alternative='two-sided')
-            ratio = warm.mean() / cold.mean() if cold.mean() > 0 else float('inf')
-            ax.text(0.02, 0.97,
-                    f"Total / jour\n"
-                    f"  froid    : {cold.mean():.0f}\n"
-                    f"  tempéré  : {warm.mean():.0f}   ({(ratio - 1) * 100:+.0f}%)\n"
-                    f"Mann-Whitney : p = {p:.1e}",
-                    transform=ax.transAxes, ha='left', va='top', fontsize=9,
-                    family='monospace',
-                    bbox=dict(boxstyle='round,pad=0.5', facecolor='white',
+        if len(cold) > 0 and len(warm) > 0 and min(cold.mean(), warm.mean()) > 0:
+            if warm.mean() >= cold.mean():
+                hi_lbl, lo_lbl = REGIME_LABEL['tempéré'], REGIME_LABEL['froid']
+                delta = (warm.mean() - cold.mean()) / cold.mean() * 100
+            else:
+                hi_lbl, lo_lbl = REGIME_LABEL['froid'], REGIME_LABEL['tempéré']
+                delta = (cold.mean() - warm.mean()) / warm.mean() * 100
+            ax.text(0.02, 0.97, f"{hi_lbl} : +{delta:.0f}% vs {lo_lbl}",
+                    transform=ax.transAxes, ha='left', va='top', fontsize=10,
+                    bbox=dict(boxstyle='round,pad=0.4', facecolor='white',
                               edgecolor='#bbb', alpha=0.95))
 
         ax.set_title(panel_title, fontsize=11, fontweight='bold')

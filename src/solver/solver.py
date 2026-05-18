@@ -75,3 +75,20 @@ def solve(graph: SolvingStationGraph, capacity: int,
                 raise Exception("Unknown solving algorithm improver")
 
     return review_solution(graph, capacity)
+
+
+def improve(graph: SolvingStationGraph, capacity: int,
+            improvers: list[SolvingAlgorithmImprover],
+            improver_max_iterations: int = 1000) -> SolutionMetrics:
+    """Applique une chaîne d'améliorations à un graphe contenant déjà une tournée valide."""
+    graph.preload_times()
+    for improver in improvers:
+        if improver == SolvingAlgorithmImprover.OPT_2:
+            opt2(graph, capacity, max_iterations=improver_max_iterations)
+        elif improver == SolvingAlgorithmImprover.OR_OPT:
+            or_opt(graph, capacity, max_iterations=improver_max_iterations)
+        elif improver == SolvingAlgorithmImprover.ILS:
+            ils(graph, capacity)
+        else:
+            raise Exception("Unknown solving algorithm improver")
+    return review_solution(graph, capacity)
