@@ -240,114 +240,230 @@ def main():
     _render_only(args, mean_ratios, stdev_ratios, config_names)
 
 
-def _render_only(args, mean_ratios, stdev_ratios, config_names):
-    """Rendu ratio_vs_n.png depuis des données déjà calculées."""
-    print(f"[{datetime.now():%H:%M:%S}] Écriture {args.out_dir}/ratio_vs_n.png")
+# Palette contrastée — on évite les tons trop clairs illisibles sur fond
+# blanc ; gradient au sein de chaque famille pour ranger les improvers.
+LOCAL_COLORS = {
+    "method1 seul":             "#7fa8e0",
+    "method1 + OPT_2":          "#2d5a9e",
+    "method1 + OR_OPT":         "#4d7fc3",
+    "method1 + OPT_2 + OR_OPT": "#1a3d7a",
+    "method1 + ILS":            "#0b2a5c",
+    "method2 seul":             "#ffb070",
+    "method2 + OPT_2":          "#e06800",
+    "method2 + OR_OPT":         "#ff8a30",
+    "method2 + OPT_2 + OR_OPT": "#a04800",
+    "method2 + ILS":            "#5c2a00",
+}
 
-    # Familles : on duplique les configs par constructeur, avec un label
-    # « improver » court qui sert d'étiquette en bout de courbe.
-    families = {
-        "Constructeur method1 (greedy)": [
-            ("method1 seul",             "seul"),
-            ("method1 + OPT_2",          "+ 2-opt"),
-            ("method1 + OR_OPT",         "+ Or-opt"),
-            ("method1 + OPT_2 + OR_OPT", "+ 2-opt + Or-opt"),
-            ("method1 + ILS",            "+ ILS"),
-        ],
-        "Constructeur method2 (insertion)": [
-            ("method2 seul",             "seul"),
-            ("method2 + OPT_2",          "+ 2-opt"),
-            ("method2 + OR_OPT",         "+ Or-opt"),
-            ("method2 + OPT_2 + OR_OPT", "+ 2-opt + Or-opt"),
-            ("method2 + ILS",            "+ ILS"),
-        ],
-    }
 
-    # Palette contrastée — on évite les tons trop clairs illisibles sur fond
-    # blanc ; gradient au sein de chaque famille pour ranger les improvers.
-    LOCAL_COLORS = {
-        "method1 seul":             "#7fa8e0",
-        "method1 + OPT_2":          "#2d5a9e",
-        "method1 + OR_OPT":         "#4d7fc3",
-        "method1 + OPT_2 + OR_OPT": "#1a3d7a",
-        "method1 + ILS":            "#0b2a5c",
-        "method2 seul":             "#ffb070",
-        "method2 + OPT_2":          "#e06800",
-        "method2 + OR_OPT":         "#ff8a30",
-        "method2 + OPT_2 + OR_OPT": "#a04800",
-        "method2 + ILS":            "#5c2a00",
-    }
+def _setup_axis(ax, x_max, y_min, y_max):
+    ax.set_facecolor("#fafafa")
+    # Bande verte « optimum » plus visible (s'étend sous y=1).
+    ax.axhspan(y_min, 1.0, facecolor="#d8ecc9", edgecolor="none",
+               alpha=0.55, zorder=0)
+    ax.axhline(1.0, color="#1e5a1e", lw=2.2, alpha=0.9, zorder=1)
+    ax.text(x_max * 0.99, (y_min + 1.0) / 2,
+            "  optimale  ",
+            ha='right', va='center', fontsize=8.5,
+            color="#1e5a1e", style='italic', fontweight='bold')
+    ax.set_xlabel("Nombre de stations  n", fontsize=11)
+    ax.set_xlim(0, x_max * 1.22)   # marge à droite pour les labels
+    ax.set_ylim(y_min, y_max)
+    ax.grid(True, alpha=0.3)
+    for spine in ('top', 'right'):
+        ax.spines[spine].set_visible(False)
 
-    # Y-range commun : on calcule max sur tous les algos pour des axes alignés.
-    all_ys = [y for ys in mean_ratios.values() for y in ys if y is not None]
-    y_max = max(all_ys) * 1.05 if all_ys else 2.2
+
+def _plot_family(ax, n_values, mean_ratios, family, band_ratios=None):
+    """family : liste de (cfg_name, short_label). ILS = trait épais.
+
+    band_ratios : optionnel, dict {cfg_name: [σ_n]} → fill_between ±σ autour
+    de la moyenne (alpha bas, même couleur que la courbe).
+    """
+    for cfg_name, short in family:
+        ys_full = mean_ratios.get(cfg_name, [])
+        xs       = [n for n, y in zip(n_values, ys_full) if y is not None]
+        ys_clean = [y for y in ys_full if y is not None]
+        if not ys_clean:
+            continue
+        color = LOCAL_COLORS.get(cfg_name, "#888")
+        is_ils = "ILS" in cfg_name
+
+        if band_ratios is not None:
+            es_full  = band_ratios.get(cfg_name, [])
+            es_clean = [e for y, e in zip(ys_full, es_full) if y is not None]
+            if len(es_clean) == len(ys_clean) and es_clean:
+                lo = [y - e for y, e in zip(ys_clean, es_clean)]
+                hi = [y + e for y, e in zip(ys_clean, es_clean)]
+                ax.fill_between(xs, lo, hi, color=color, alpha=0.15,
+                                linewidth=0, zorder=2 if is_ils else 1)
+
+        ax.plot(xs, ys_clean,
+                marker="o",
+                markersize=7 if is_ils else 5,
+                linewidth=3.2 if is_ils else 1.9,
+                color=color, zorder=5 if is_ils else 3,
+                solid_capstyle='round')
+        ax.annotate(
+            short,
+            xy=(xs[-1], ys_clean[-1]),
+            xytext=(12, 0), textcoords='offset points',
+            fontsize=10 if is_ils else 9,
+            fontweight='bold' if is_ils else 'normal',
+            color=color, va='center', ha='left',
+            annotation_clip=False,
+        )
+
+
+def _render_two_panel(args, mean_ratios, families, out_name,
+                      y_max, y_min=0.90, suptitle=None, band_ratios=None):
     x_max = max(args.n_values)
-    y_min = 0.90  # marge plus large : laisse de l'air sous la bande optimum
-
     fig, axes = plt.subplots(1, 2, figsize=(15, 6.8), sharey=True)
     fig.patch.set_facecolor("white")
-
     for ax, (title, family) in zip(axes, families.items()):
-        ax.set_facecolor("#fafafa")
-
-        # Bande verte « optimum » plus visible (s'étend sous y=1).
-        ax.axhspan(y_min, 1.0, facecolor="#d8ecc9", edgecolor="none",
-                   alpha=0.55, zorder=0)
-        ax.axhline(1.0, color="#1e5a1e", lw=2.2, alpha=0.9, zorder=1)
-        ax.text(x_max * 0.99, (y_min + 1.0) / 2,
-                "  Zone optimale  ",
-                ha='right', va='center', fontsize=8.5,
-                color="#1e5a1e", style='italic', fontweight='bold')
-
-        # Trace chaque courbe. ILS = épais & marqueur plus gros (champion).
-        for cfg_name, short in family:
-            ys = mean_ratios[cfg_name]
-            xs       = [n for n, y in zip(args.n_values, ys) if y is not None]
-            ys_clean = [y for y in ys if y is not None]
-            if not ys_clean:
-                continue
-            color = LOCAL_COLORS.get(cfg_name, "#888")
-            is_ils = "ILS" in cfg_name
-            ax.plot(xs, ys_clean,
-                    marker="o",
-                    markersize=7 if is_ils else 5,
-                    linewidth=3.2 if is_ils else 1.9,
-                    color=color, zorder=5 if is_ils else 3,
-                    solid_capstyle='round')
-
-            # Étiquette de l'improver en bout de courbe.
-            ax.annotate(
-                short,
-                xy=(xs[-1], ys_clean[-1]),
-                xytext=(12, 0), textcoords='offset points',
-                fontsize=10 if is_ils else 9,
-                fontweight='bold' if is_ils else 'normal',
-                color=color, va='center', ha='left',
-                annotation_clip=False,
-            )
-
+        _setup_axis(ax, x_max, y_min, y_max)
+        _plot_family(ax, args.n_values, mean_ratios, family, band_ratios)
         ax.set_title(title, fontsize=13, fontweight='bold', pad=10)
-        ax.set_xlabel("Nombre de stations  n", fontsize=11)
-        ax.set_xlim(0, x_max * 1.22)   # marge à droite pour les labels
-        ax.set_ylim(y_min, y_max)
-        ax.grid(True, alpha=0.3)
-        for spine in ('top', 'right'):
-            ax.spines[spine].set_visible(False)
-
     axes[0].set_ylabel("Ratio d'approximation\n(temps de la tournée / borne inférieure)")
-
-    # Titre général.
-    fig.suptitle(
-        f"Qualité des algorithmes en fonction de la taille du problème\n"
-        f"({args.instances} instances aléatoires par valeur de n)",
-        fontsize=14, fontweight='bold', y=1.02)
-
+    if suptitle:
+        fig.suptitle(suptitle, fontsize=14, fontweight='bold', y=1.02)
     fig.tight_layout()
-    fig.savefig(os.path.join(args.out_dir, "ratio_vs_n.png"),
-                dpi=150, bbox_inches="tight")
+    out_path = os.path.join(args.out_dir, out_name)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
+    print(f"  écrit {out_path}")
 
-    print(f"[{datetime.now():%H:%M:%S}] OK — {args.out_dir}/ratio_vs_n.png")
+
+def _render_single_panel(args, mean_ratios, family, out_name, title,
+                         y_max, y_min=0.90, band_ratios=None):
+    x_max = max(args.n_values)
+    fig, ax = plt.subplots(figsize=(10, 6.5))
+    fig.patch.set_facecolor("white")
+    _setup_axis(ax, x_max, y_min, y_max)
+    _plot_family(ax, args.n_values, mean_ratios, family, band_ratios)
+    ax.set_title(title, fontsize=13, fontweight='bold', pad=10)
+    ax.set_ylabel("Ratio d'approximation\n(temps de la tournée / borne inférieure)")
+    fig.tight_layout()
+    out_path = os.path.join(args.out_dir, out_name)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  écrit {out_path}")
+
+
+def _render_only(args, mean_ratios, stdev_ratios, config_names):
+    """Produit 7 variantes (révélation progressive pour la présentation).
+
+    Les bandes ±σ (`stdev_ratios`) sont superposées sous chaque courbe.
+    """
+    print(f"[{datetime.now():%H:%M:%S}] Écriture des variantes dans {args.out_dir}/")
+
+    # Y-range global pour échelle cohérente entre toutes les variantes.
+    # On élargit pour inclure les bandes ±σ (sinon les hauts de bande sont coupés).
+    band = stdev_ratios or {}
+    all_tops = []
+    for name, ys in mean_ratios.items():
+        es = band.get(name, [])
+        for j, y in enumerate(ys):
+            if y is None:
+                continue
+            e = es[j] if j < len(es) else 0.0
+            all_tops.append(y + e)
+    y_max = max(all_tops) * 1.03 if all_tops else 2.2
+
+    bands = stdev_ratios  # ±σ : variabilité inter-instances
+
+    # 1. method1 seul (1 panneau)
+    _render_single_panel(args, mean_ratios,
+                         [("method1 seul", "method1")],
+                         "ratio_m1_only.png",
+                         "Constructeur method1 (greedy) — sans amélioration",
+                         y_max, band_ratios=bands)
+
+    # 2. method2 seul (1 panneau)
+    _render_single_panel(args, mean_ratios,
+                         [("method2 seul", "method2")],
+                         "ratio_m2_only.png",
+                         "Constructeur method2 (insertion) — sans amélioration",
+                         y_max, band_ratios=bands)
+
+    # 3. m1 + m2 superposés (1 panneau)
+    _render_single_panel(args, mean_ratios,
+                         [("method1 seul", "method1"),
+                          ("method2 seul", "method2")],
+                         "ratio_m1_m2_basic.png",
+                         "Comparaison des constructeurs (sans amélioration)",
+                         y_max, band_ratios=bands)
+
+    # 4. 2 panneaux, juste base
+    _render_two_panel(args, mean_ratios,
+                      {
+                          "Constructeur method1 (greedy)":    [("method1 seul", "seul")],
+                          "Constructeur method2 (insertion)": [("method2 seul", "seul")],
+                      },
+                      "ratio_2p_basic.png", y_max,
+                      suptitle="Constructeurs seuls (sans amélioration)",
+                      band_ratios=bands)
+
+    # 5. 2 panneaux + Or-opt
+    _render_two_panel(args, mean_ratios,
+                      {
+                          "Constructeur method1 (greedy)": [
+                              ("method1 seul",     "seul"),
+                              ("method1 + OR_OPT", "+ Or-opt"),
+                          ],
+                          "Constructeur method2 (insertion)": [
+                              ("method2 seul",     "seul"),
+                              ("method2 + OR_OPT", "+ Or-opt"),
+                          ],
+                      },
+                      "ratio_2p_oropt.png", y_max,
+                      suptitle="Ajout de l'opérateur Or-opt",
+                      band_ratios=bands)
+
+    # 6. 2 panneaux + 2-opt + Or-opt + combiné (sans ILS)
+    _render_two_panel(args, mean_ratios,
+                      {
+                          "Constructeur method1 (greedy)": [
+                              ("method1 seul",             "seul"),
+                              ("method1 + OPT_2",          "+ 2-opt"),
+                              ("method1 + OR_OPT",         "+ Or-opt"),
+                              ("method1 + OPT_2 + OR_OPT", "+ 2-opt + Or-opt"),
+                          ],
+                          "Constructeur method2 (insertion)": [
+                              ("method2 seul",             "seul"),
+                              ("method2 + OPT_2",          "+ 2-opt"),
+                              ("method2 + OR_OPT",         "+ Or-opt"),
+                              ("method2 + OPT_2 + OR_OPT", "+ 2-opt + Or-opt"),
+                          ],
+                      },
+                      "ratio_2p_2opt.png", y_max,
+                      suptitle="Ajout des opérateurs 2-opt et Or-opt",
+                      band_ratios=bands)
+
+    # 7. version complète avec ILS (= ratio_vs_n.png original)
+    _render_two_panel(args, mean_ratios,
+                      {
+                          "Constructeur method1 (greedy)": [
+                              ("method1 seul",             "seul"),
+                              ("method1 + OPT_2",          "+ 2-opt"),
+                              ("method1 + OR_OPT",         "+ Or-opt"),
+                              ("method1 + OPT_2 + OR_OPT", "+ 2-opt + Or-opt"),
+                              ("method1 + ILS",            "+ ILS"),
+                          ],
+                          "Constructeur method2 (insertion)": [
+                              ("method2 seul",             "seul"),
+                              ("method2 + OPT_2",          "+ 2-opt"),
+                              ("method2 + OR_OPT",         "+ Or-opt"),
+                              ("method2 + OPT_2 + OR_OPT", "+ 2-opt + Or-opt"),
+                              ("method2 + ILS",            "+ ILS"),
+                          ],
+                      },
+                      "ratio_vs_n.png", y_max,
+                      suptitle=f"Qualité des algorithmes en fonction de la taille du problème\n"
+                               f"({args.instances} instances aléatoires par valeur de n)",
+                      band_ratios=bands)
+
+    print(f"[{datetime.now():%H:%M:%S}] OK — 7 variantes écrites dans {args.out_dir}/")
 
 
 if __name__ == "__main__":
