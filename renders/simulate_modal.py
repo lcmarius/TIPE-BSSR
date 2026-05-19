@@ -260,7 +260,7 @@ def render_stratified(results: list[dict], out_path: str) -> str:
         t0 = ref_times[0]
         x = np.array([(t - t0).total_seconds() / 3600.0 for t in ref_times])
 
-        # Moyenne ± SEM (écart-type / √N) — la bande montre la **précision
+        # Moyenne ± incertitude (σ/√N) — la bande montre la **précision
         # sur la moyenne**, pas la dispersion individuelle des jours.
         # Avec N=10, on connaît la moyenne ~3× mieux que la variabilité
         # jour-à-jour. C'est la quantité pertinente pour valider une
@@ -276,13 +276,13 @@ def render_stratified(results: list[dict], out_path: str) -> str:
         ax.fill_between(x, base_mean - base_sem, base_mean + base_sem,
                         color="#6c7a89", alpha=0.22)
         ax.plot(x, base_mean, color="#6c7a89", ls="--", lw=2,
-                label="Réalité (moyenne ± SEM)")
+                label="Réalité (moyenne ± incertitude)")
         ax.fill_between(x, opt_mean - opt_sem, opt_mean + opt_sem,
                         color="#2d5a9e", alpha=0.24)
         ax.plot(x, opt_mean, color="#2d5a9e", ls="-", lw=2.5,
-                label="+ 1 camion (moyenne ± SEM)")
+                label="+ 1 camion (moyenne ± incertitude)")
 
-        # Gain par jour : moyenne, et SEM de la moyenne (= σ/√N).
+        # Gain par jour : moyenne, et incertitude sur la moyenne (= σ/√N).
         per_day_gain = np.array([
             (b - o) / b * 100 if b > 0 else 0.0
             for b, o in zip(base_arr[:, -1], opt_arr[:, -1])
@@ -313,7 +313,7 @@ def render_stratified(results: list[dict], out_path: str) -> str:
     n_ok = sum(len(v) for v in by_stratum.values())
     fig.suptitle(f"Valeur marginale d'1 camion supplémentaire (boucle "
                  f"{TRUCK_START}→{TRUCK_END}, repos {TRUCK_REST_MIN} min)\n"
-                 f"Bicloo Nantes sur {n_ok} jours  ·  bande = SEM (σ/√N)"
+                 f"Bicloo Nantes sur {n_ok} jours  ·  bande = incertitude (σ/√N)"
                  + (f"  ({n_failed} échecs)" if n_failed else ""),
                  fontsize=13, fontweight="bold", y=1.005)
     fig.tight_layout()
@@ -323,7 +323,7 @@ def render_stratified(results: list[dict], out_path: str) -> str:
 
 
 def _print_summary(results: list[dict]) -> None:
-    """Récap chiffré par strate (moyenne ± SEM sur les jours)."""
+    """Récap chiffré par strate (moyenne ± incertitude sur les jours)."""
     import math
     import statistics
     by_stratum: dict[tuple[DayType, Season], list[dict]] = defaultdict(list)
@@ -333,9 +333,9 @@ def _print_summary(results: list[dict]) -> None:
             by_stratum[(_day_type(d), _season(d))].append(r)
     print()
     print(f"  {'Strate':<35}  {'N':>3}  {'Baseline (méd.)':>15}  "
-          f"{'Optimisé (méd.)':>15}  {'Δrupture moy. ± SEM':>21}  {'dégr.':>7}")
+          f"{'Optimisé (méd.)':>15}  {'Δrupture moy. ± incert.':>23}  {'dégr.':>7}")
     print(f"  {'─' * 35}  {'─' * 3}  {'─' * 15}  {'─' * 15}  "
-          f"{'─' * 21}  {'─' * 7}")
+          f"{'─' * 23}  {'─' * 7}")
     for stratum in [(DayType.WD, Season.COLD), (DayType.WE, Season.COLD),
                     (DayType.WD, Season.WARM), (DayType.WE, Season.WARM)]:
         rs = by_stratum.get(stratum, [])
@@ -355,7 +355,7 @@ def _print_summary(results: list[dict]) -> None:
         delta = -gm
         print(f"  {_stratum_label(stratum):<35}  {len(rs):>3}  "
               f"{bm:>11.0f} min  {om:>11.0f} min  "
-              f"{delta:>+10.1f}% ± {gsem:>4.1f}%  {n_bad:>3d}/{len(rs):<3d}")
+              f"{delta:>+12.1f}% ± {gsem:>4.1f}%  {n_bad:>3d}/{len(rs):<3d}")
 
 
 def _save_local_cache(results: list[dict]) -> None:
