@@ -326,7 +326,7 @@ def render(data: dict) -> None:
 
     ax.set_yscale("log")
     ax.set_xlabel("Nombre de stations  n", fontsize=11, color=TEXT)
-    ax.set_ylabel("Temps de résolution (s, échelle log)", fontsize=11, color=TEXT)
+    ax.set_ylabel("Temps de résolution (échelle log)", fontsize=11, color=TEXT)
     ax.set_xticks(list(range(4, 31, 2)))
     ax.set_xlim(3.5, 30.5)
     ax.grid(True, alpha=0.3, which="both")

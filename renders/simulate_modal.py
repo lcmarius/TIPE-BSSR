@@ -260,31 +260,36 @@ def render_stratified(results: list[dict], out_path: str) -> str:
         t0 = ref_times[0]
         x = np.array([(t - t0).total_seconds() / 3600.0 for t in ref_times])
 
-        # Moyenne ± écart-type (au lieu de médiane + IQR) — on montre la
-        # dispersion réelle des journées de la strate, pas seulement le
-        # central 50 %.
+        # Moyenne ± SEM (écart-type / √N) — la bande montre la **précision
+        # sur la moyenne**, pas la dispersion individuelle des jours.
+        # Avec N=10, on connaît la moyenne ~3× mieux que la variabilité
+        # jour-à-jour. C'est la quantité pertinente pour valider une
+        # méthode sur ce sous-échantillon.
+        sqrtN = max(1.0, np.sqrt(len(rs)))
         base_mean = base_arr.mean(axis=0)
         opt_mean  = opt_arr.mean(axis=0)
-        base_std  = base_arr.std(axis=0, ddof=1) if len(rs) > 1 else np.zeros_like(base_mean)
-        opt_std   = opt_arr.std(axis=0, ddof=1)  if len(rs) > 1 else np.zeros_like(opt_mean)
+        base_sem  = (base_arr.std(axis=0, ddof=1) / sqrtN
+                     if len(rs) > 1 else np.zeros_like(base_mean))
+        opt_sem   = (opt_arr.std(axis=0, ddof=1) / sqrtN
+                     if len(rs) > 1 else np.zeros_like(opt_mean))
 
-        ax.fill_between(x, base_mean - base_std, base_mean + base_std,
-                        color="#6c7a89", alpha=0.18)
+        ax.fill_between(x, base_mean - base_sem, base_mean + base_sem,
+                        color="#6c7a89", alpha=0.22)
         ax.plot(x, base_mean, color="#6c7a89", ls="--", lw=2,
-                label="Réalité (moyenne ± σ)")
-        ax.fill_between(x, opt_mean - opt_std, opt_mean + opt_std,
-                        color="#2d5a9e", alpha=0.20)
+                label="Réalité (moyenne ± SEM)")
+        ax.fill_between(x, opt_mean - opt_sem, opt_mean + opt_sem,
+                        color="#2d5a9e", alpha=0.24)
         ax.plot(x, opt_mean, color="#2d5a9e", ls="-", lw=2.5,
-                label="+ 1 camion (moyenne ± σ)")
+                label="+ 1 camion (moyenne ± SEM)")
 
-        # Statistique sur le gain total : moyenne et écart-type des gains
-        # par jour (plus parlant que (mean_base − mean_opt) / mean_base).
+        # Gain par jour : moyenne, et SEM de la moyenne (= σ/√N).
         per_day_gain = np.array([
             (b - o) / b * 100 if b > 0 else 0.0
             for b, o in zip(base_arr[:, -1], opt_arr[:, -1])
         ])
         g_mean = per_day_gain.mean()
-        g_std  = per_day_gain.std(ddof=1) if len(per_day_gain) > 1 else 0.0
+        g_sem  = (per_day_gain.std(ddof=1) / sqrtN
+                  if len(per_day_gain) > 1 else 0.0)
         n_bad  = int((per_day_gain < 0).sum())
         # Convention : gain positif = rupture diminuée (bénéfique).
         # On signe explicitement Δrupture (négatif = bon).
@@ -292,7 +297,7 @@ def render_stratified(results: list[dict], out_path: str) -> str:
         sign = "−" if delta <= 0 else "+"
         bad_note = f"  ·  {n_bad}/{len(rs)} dégradés" if n_bad > 0 else ""
         ax.set_title(f"{_stratum_label(stratum)}  ·  {len(rs)} j  ·  "
-                     f"Δrupture = {sign}{abs(delta):.1f}% ± {g_std:.1f}%"
+                     f"Δrupture = {sign}{abs(delta):.1f}% ± {g_sem:.1f}%"
                      f"{bad_note}",
                      fontsize=10.5, fontweight="bold", pad=8)
         ax.legend(loc="upper left", fontsize=9, framealpha=0.9)
@@ -308,7 +313,7 @@ def render_stratified(results: list[dict], out_path: str) -> str:
     n_ok = sum(len(v) for v in by_stratum.values())
     fig.suptitle(f"Valeur marginale d'1 camion supplémentaire (boucle "
                  f"{TRUCK_START}→{TRUCK_END}, repos {TRUCK_REST_MIN} min)\n"
-                 f"Bicloo Nantes sur {n_ok} jours"
+                 f"Bicloo Nantes sur {n_ok} jours  ·  bande = SEM (σ/√N)"
                  + (f"  ({n_failed} échecs)" if n_failed else ""),
                  fontsize=13, fontweight="bold", y=1.005)
     fig.tight_layout()
@@ -318,7 +323,8 @@ def render_stratified(results: list[dict], out_path: str) -> str:
 
 
 def _print_summary(results: list[dict]) -> None:
-    """Récap chiffré par strate (moyenne ± écart-type sur les jours)."""
+    """Récap chiffré par strate (moyenne ± SEM sur les jours)."""
+    import math
     import statistics
     by_stratum: dict[tuple[DayType, Season], list[dict]] = defaultdict(list)
     for r in results:
@@ -326,10 +332,10 @@ def _print_summary(results: list[dict]) -> None:
             d = date.fromisoformat(r["date"])
             by_stratum[(_day_type(d), _season(d))].append(r)
     print()
-    print(f"  {'Strate':<35}  {'N':>3}  {'Baseline':>16}  "
-          f"{'Optimisé':>16}  {'Gain moy. ± σ':>17}  {'dégr.':>7}")
-    print(f"  {'─' * 35}  {'─' * 3}  {'─' * 16}  {'─' * 16}  "
-          f"{'─' * 17}  {'─' * 7}")
+    print(f"  {'Strate':<35}  {'N':>3}  {'Baseline (méd.)':>15}  "
+          f"{'Optimisé (méd.)':>15}  {'Δrupture moy. ± SEM':>21}  {'dégr.':>7}")
+    print(f"  {'─' * 35}  {'─' * 3}  {'─' * 15}  {'─' * 15}  "
+          f"{'─' * 21}  {'─' * 7}")
     for stratum in [(DayType.WD, Season.COLD), (DayType.WE, Season.COLD),
                     (DayType.WD, Season.WARM), (DayType.WE, Season.WARM)]:
         rs = by_stratum.get(stratum, [])
@@ -339,14 +345,17 @@ def _print_summary(results: list[dict]) -> None:
         opt  = [r["optimized"].total_rupture_min for r in rs]
         per_day_gain = [(b - o) / b * 100 if b > 0 else 0
                         for b, o in zip(base, opt)]
-        bm = statistics.fmean(base); bs = statistics.stdev(base) if len(base) > 1 else 0
-        om = statistics.fmean(opt);  os_ = statistics.stdev(opt) if len(opt) > 1 else 0
+        bm = statistics.median(base)
+        om = statistics.median(opt)
         gm = statistics.fmean(per_day_gain)
-        gs = statistics.stdev(per_day_gain) if len(per_day_gain) > 1 else 0
+        gsd = statistics.stdev(per_day_gain) if len(per_day_gain) > 1 else 0.0
+        gsem = gsd / math.sqrt(len(per_day_gain))
         n_bad = sum(1 for g in per_day_gain if g < 0)
+        # Convention : Δrupture < 0 = bon (rupture réduite)
+        delta = -gm
         print(f"  {_stratum_label(stratum):<35}  {len(rs):>3}  "
-              f"{bm:>8.0f} ± {bs:>4.0f}  {om:>8.0f} ± {os_:>4.0f}  "
-              f"{gm:>+8.1f}% ± {gs:>4.1f}%  {n_bad:>3d}/{len(rs):<3d}")
+              f"{bm:>11.0f} min  {om:>11.0f} min  "
+              f"{delta:>+10.1f}% ± {gsem:>4.1f}%  {n_bad:>3d}/{len(rs):<3d}")
 
 
 def _save_local_cache(results: list[dict]) -> None:
