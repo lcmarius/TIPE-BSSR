@@ -1,0 +1,805 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html >
+
+	<head>
+		
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Content-Type" content="text/html; charset='UTF-8'" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+
+
+
+<meta name="robots" content="noindex,nofollow" />
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" src="/TIPECandidat/js/utils/sceiUtils.js?v=2026.1.3"></script>
+
+    
+        <script type="text/javascript" src="https://ressources.scei-concours.fr/jquery/jquery-3.7.1.min.js"></script>
+        <script type="text/javascript" src="https://ressources.scei-concours.fr/jquery-ui-1.13.2/jquery-ui.min.js"></script>
+    
+    
+    <script src="https://ressources.scei-concours.fr/bootstrap-4.3.1-dist/js/popper.min.js"></script>
+    <script src="https://ressources.scei-concours.fr/bootstrap-4.3.1-dist/js/bootstrap.min.js"></script>
+    <script src="https://ressources.scei-concours.fr/select2-4.0.11/dist/js/select2.min.js"></script>
+
+    <link href="https://ressources.scei-concours.fr/bootstrap-4.3.1-dist/css/bootstrap.min.css" rel="stylesheet" />
+
+    
+    
+    <link rel="stylesheet" href="https://ressources.scei-concours.fr/fontawesome-free-6.2.1-web/css/all.css" crossorigin="anonymous" />
+    <link href="https://ressources.scei-concours.fr/fontawesome-free-6.2.1-web/css/v5-font-face.css" rel="stylesheet" />
+
+    
+        <link rel="stylesheet" href="https://ressources.scei-concours.fr/jquery-ui-1.13.2/jquery-ui.css" />
+    
+    
+
+    <link href="https://ressources.scei-concours.fr/select2-4.0.11/dist/css/select2.min.css" rel="stylesheet" />
+
+
+
+<link rel="stylesheet" href="/TIPECandidat/css/select2-bootstrap4.min.css" />
+
+<link rel="stylesheet" href="/TIPECandidat/css/general.css?v=2026.1.3" />
+
+<link rel="stylesheet" href="/TIPECandidat/css/menu.css?v=2026.1.3" />
+
+
+<link rel="stylesheet" href="/TIPECandidat/css/application.css?v=2026.1.3" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<title>Saisies TIPE candidat</title>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		
+	</head>
+
+<body>
+
+<div id="containerPrincipal" class="text-center">
+
+	
+		
+		
+
+
+
+
+
+
+
+
+		
+	
+
+	
+	
+
+
+
+    
+    
+
+
+
+
+
+
+    <div id="containerContenu" class="container-fluid">
+        <div id="lignePrincipaleContenu" class="row justify-content-md-center">
+            <div id="colonnePrincipaleContenu" class="col-md-12">
+
+                    
+
+                <!-- contenus : corps -->
+	
+
+
+
+
+
+
+		   			
+		   				
+		  
+			 
+
+
+<header class="tipe-header">
+  <div class="wrapper">
+    <img
+      src="https://ressources.scei-concours.fr/logos/scei.png"
+      alt="SCEI"
+      width="220"
+      height="56"
+    />
+    <img
+      src="https://ressources.scei-concours.fr/logos/tipe.png"
+      alt="TIPE"
+      width="72"
+      height="70"
+    />
+  </div>
+  <h1>Épreuve commune de TIPE</h1>
+  <nav>
+    <a
+      href="https://mondossier.scei-concours.fr/PreInscription/messagerie/nouveauMessageCandidatNonAuthentifie?tut_cod=1"
+      target="_blank"
+    >
+      <svg
+        data-v-727bebfc=""
+        class="svg-inline--fa fa-envelope fa-3x"
+        aria-labelledby="svg-inline--fa-title-x1XfrNvgsPJU"
+        data-prefix="fas"
+        data-icon="envelope"
+        role="img"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 512 512"
+      >
+        <title class="" id="svg-inline--fa-title-x1XfrNvgsPJU">
+          Nous contacter
+        </title>
+        <path
+          class=""
+          fill="currentColor"
+          d="M48 64C21.5 64 0 85.5 0 112c0 15.1 7.1 29.3 19.2 38.4L236.8 313.6c11.4 8.5 27 8.5 38.4 0L492.8 150.4c12.1-9.1 19.2-23.3 19.2-38.4c0-26.5-21.5-48-48-48H48zM0 176V384c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V176L294.4 339.2c-22.8 17.1-54 17.1-76.8 0L0 176z"
+        ></path>
+      </svg>
+    </a>
+    <a href="https://www.scei-concours.fr/tipe.php">
+      <svg
+        data-v-727bebfc=""
+        class="svg-inline--fa fa-circle-question fa-3x"
+        aria-labelledby="svg-inline--fa-title-G8Ggmqp03Cp6"
+        data-prefix="fas"
+        data-icon="circle-question"
+        role="img"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 512 512"
+      >
+        <title class="" id="svg-inline--fa-title-G8Ggmqp03Cp6">Aide</title>
+        <path
+          class=""
+          fill="currentColor"
+          d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM169.8 165.3c7.9-22.3 29.1-37.3 52.8-37.3h58.3c34.9 0 63.1 28.3 63.1 63.1c0 22.6-12.1 43.5-31.7 54.8L280 264.4c-.2 13-10.9 23.6-24 23.6c-13.3 0-24-10.7-24-24V250.5c0-8.6 4.6-16.5 12.1-20.8l44.3-25.4c4.7-2.7 7.6-7.7 7.6-13.1c0-8.4-6.8-15.1-15.1-15.1H222.6c-3.4 0-6.4 2.1-7.5 5.3l-.4 1.2c-4.4 12.5-18.2 19-30.6 14.6s-19-18.2-14.6-30.6l.4-1.2zM224 352a32 32 0 1 1 64 0 32 32 0 1 1 -64 0z"
+        ></path>
+      </svg>
+    </a>
+  </nav>
+</header>
+
+<style>
+  .tipe-header {
+    background-color: #08324c;
+    padding: 8px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    --text-color: #eee;
+    color: var(--text-color);
+  }
+  .wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tipe-header h1 {
+    white-space: nowrap;
+    font-size: 1.6rem;
+  }
+  .tipe-header nav {
+    display: flex;
+    gap: 1.5rem;
+  }
+  .tipe-header nav a {
+    color: var(--text-color);
+  }
+  @media (max-width: 900px) {
+    .tipe-header {
+      flex-direction: column;
+    }
+  }
+  .fa-3x {
+    font-size: 3em;
+  }
+  .svg-inline--fa {
+    overflow: visible;
+    display: inline-block;
+    height: 1em;
+    vertical-align: -0.125em;
+  }
+</style>
+
+
+
+
+<style>
+	body {
+		background: #F7F7F7;
+	}
+	
+	#containerAuthentification {
+		padding-top: 50px;
+	}
+	
+	#logo {
+		margin-bottom: 50px;
+		
+	}
+	
+	.badgeTIPE {
+		background-color: #395B70;
+		color: white;
+		padding: 4px 8px;
+		
+	}
+	
+	h6 {
+		color: #636363;
+	}
+	
+	#blocPremiereVisite, #blocAuthentification, #blocEtapes {
+		background: white;
+		border: 1px solid #bdbdbd;
+		padding: 25px;
+		margin: 10px;
+	}
+	
+	#blocAuthentification label {
+		color: #2C65CC;
+		margin-bottom: 0px;
+	}
+	
+	#colonnePrincipaleContenu {
+		padding: 0px !important;
+	}
+	
+	.logo {
+		max-width: 15rem;
+	}
+</style>
+
+<div id="containerAuthentification" class="container text-center">
+	<div id="emplacementAlerteConfigurable">
+		<div id="messageCandidatRedirige" class="scei-bloc-info d-none">
+			Pour poursuivre, veuillez vous authentifier.
+		</div>
+	</div>
+	<div class="row justify-content-center">
+		
+		<div id="blocEtapes" class="col-lg-4  text-center">
+			<h6 id="headerEtapes" class="text-uppercase">
+				Les différents jalons de l'épreuve TIPE
+			</h6>
+			<br />
+			<div id="spinner" class="spinner-border" role="status">
+				<span class="sr-only">Loading...</span>
+			</div>
+			<div class="text-center">
+				<span class="badge badge-pill badgeTIPE">ÉTAPE 1</span>
+			</div>
+			<div class="text-center">
+				<strong>Du <span id="dat_deb_et1"></span> au <span id="dat_fin_et1"></span></strong>
+			</div>
+			<div class="text-center">Titre, motivation et ancrage au thème</div>
+			<div class="text-center">MCOT</div>
+			<br />
+			
+			
+
+			<div class="text-center">
+				<span class="badge badge-pill badgeTIPE">ÉTAPE 2</span>
+			</div>
+			<div class="text-center">
+			
+			<strong>Du <span id="dat_deb_et2"></span> au <span id="dat_fin_et2"></span></strong>
+
+	
+				
+			</div>
+			<div class="text-center">Présentation - DOT</div>
+			<br />
+			
+			
+						<div class="text-center">
+				<span class="badge badge-pill badgeTIPE">ÉTAPE 3</span>
+			</div>
+			<div class="text-center">
+			
+				
+			<strong>Du <span id="dat_deb_et3"></span> au <span id="dat_fin_et3"></span></strong>
+
+	
+				
+			</div>
+			<div class="text-center">Validation par le professeur encadrant</div>
+			<br />
+			
+		</div>
+
+
+		
+		<div id="blocAuthentification" class="col-lg-3 text-center">
+			<h6 id="headerAuthentification" class="mb-4 text-uppercase">
+				Accès à mon dossier
+			</h6>
+			<form id="authentificationCandidatForm" action="authentifierCandidat" method="post" autocomplete="off">
+				<input id="uriDemandee" name="uriDemandee" type="hidden" value="/mcot"/>
+				<input id="tut_cod" name="tut_cod" type="hidden" value=""/>
+				<div class="form-group text-left">
+					<label for="can_cod">
+						Numéro d'inscription
+					</label>
+					<input id="can_cod" name="can_cod" class="form-control" maxLength="6" type="text" value=""/>
+					
+				</div>
+				<div class="form-group text-left mb-5">
+					<label for="can_mot_pas">
+						Mot de passe
+					</label>
+					<input id="can_mot_pas" name="can_mot_pas" class="form-control" type="password" value=""/>
+					
+				</div>
+				<button type="submit" 
+						class="btn btn-primary d-block my-6 mx-auto unSeulClic">
+					Connexion
+				</button>
+				<a href="afficherRecuperationCodes?uriDemandee=/mcot"
+					class="d-block mt-5">
+					Codes perdus?
+				</a>
+			</form>
+		</div>
+
+		
+	</div>
+</div>
+
+
+
+        
+        
+
+        </div>
+    </div>
+</div>
+        
+
+    </div>
+
+    
+    
+
+
+
+
+<script type="text/javascript">
+
+    
+    $.fn.select2.amd.define('select2/i18n/fr',[],function () {
+        // French
+        return {
+            errorLoading: function () {
+                return 'Les résultats ne peuvent pas être chargés.';
+            },
+            inputTooLong: function (args) {
+                var overChars = args.input.length - args.maximum;
+
+                return 'Supprimez ' + overChars + ' caractère' +
+                    ((overChars > 1) ? 's' : '');
+            },
+            inputTooShort: function (args) {
+                var remainingChars = args.minimum - args.input.length;
+
+                return 'Saisissez au moins ' + remainingChars + ' caractère' +
+                    ((remainingChars > 1) ? 's' : '');
+            },
+            loadingMore: function () {
+                return 'Chargement de résultats supplémentaires…';
+            },
+            maximumSelected: function (args) {
+                return 'Vous pouvez seulement sélectionner ' + args.maximum +
+                    ' élément' + ((args.maximum > 1) ? 's' : '');
+            },
+            noResults: function () {
+                return 'Aucun résultat trouvé';
+            },
+            searching: function () {
+                return 'Recherche en cours…';
+            },
+            removeAllItems: function () {
+                return 'Supprimer tous les éléments';
+            }
+        };
+    });
+
+
+	$(document).ready(function(){
+		
+
+	  	$("#alerteConfigurable").not(".alert-danger").each(function(){
+	  	    var tempsAffichageEnSecondes = $(this).data("temps_affichage");
+	  	    if (tempsAffichageEnSecondes!=undefined && tempsAffichageEnSecondes>0) {
+                $(this).fadeTo(tempsAffichageEnSecondes*1000, 500).slideUp(500, function(){
+                    $("#alerteConfigurable").alert('close');
+                });
+            }
+        });
+
+        if ($("#emplacementAlerteConfigurable").length>0) {
+            $("#alerteConfigurable").appendTo("#emplacementAlerteConfigurable");
+        }
+	  	
+	  	
+	  	
+  		$("a.post").on("click",function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            let messageConfirmation = $(this).attr("messageConfirmation");
+            if (messageConfirmation!=undefined && messageConfirmation.length>0) {
+                if (!confirm(messageConfirmation.replaceAll("\\n","\n"))) {
+                    return false;
+                }
+            }
+
+            let href = this.href;
+            let url = href;
+            //console.log("click post : href="+href);
+
+            var pp, inputs = '';
+              if (/\?/.test(href)) {
+                  var parts = href.split('?');
+                  url = parts[0];
+                  var params = parts[1].split('&');
+                  for (var i = 0, n = params.length; i < n; i++) {
+                      pp = params[i].split('=');
+                      inputs += '<input type="hidden" name="' + pp[0] + '" value="' + pp[1] + '" />';
+                  }
+              }
+
+            $("body").append('<form action="'+url+'" method="post" id="poster">'+inputs+'</form>');
+            console.log("click post : form submit");
+            $("form#poster").trigger("submit");
+        });
+
+        
+        $("button[messageConfirmation]").on("click",function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            let form = $(this).parents("form");
+            let actionConfirmee= false;
+
+            let messageConfirmation = $(this).attr("messageConfirmation");
+            if (messageConfirmation!=undefined && messageConfirmation.length>0) {
+                if (confirm(messageConfirmation.replaceAll("\\n","\n"))) {
+                    actionConfirmee = true;
+                }
+            }
+
+            if (actionConfirmee) {
+                form.trigger("submit");
+            }
+        });
+	  	
+	});
+
+	
+    $('[data-toggle="tooltip"]').tooltip();
+
+    
+    $("select.select2").each(function(){
+        $(this).select2({
+            language: "fr",
+            width: "100%",
+            placeholder: $(this).attr("placeholder")
+        });
+    });
+
+    
+    
+    $("input.unSeulClic").on("click",function(e){
+        $(this).off("click");
+        $(this).val($(this).val()+"...");
+        $(this).addClass("disabled");
+    });
+    $("button.unSeulClic,a.unSeulClic").on("click",function(e){
+        $(this).off("click");
+        $(this).html($(this).html()+"...");
+        $(this).addClass("disabled");
+    });
+
+
+    
+    $("input[type='number'][maxlength]").on("input",function(){
+        if (this.value.length > this.maxLength) this.value = this.value.slice(0, this.maxLength);
+    });
+
+
+    
+    
+
+
+    
+
+
+
+</script>
+
+    
+
+    <footer>
+        
+        
+
+
+
+
+
+
+
+        
+
+        
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+
+        
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+
+        
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+
+    </footer>
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body>
+
+</html>
+
+<script>
+	$(document).ready(function() {
+
+
+						/*Cas particulier où l'on charge des données suplémentaires par rapport au controller original du framework sur lequel on a pas la main dans cette application*/
+						var ajaxReq = $
+								.ajax({
+									url : "/TIPECandidat/chargerInformationsAccueil",
+									type : 'GET',
+									data : new FormData(),
+									cache : false,
+									contentType : false,
+									processData : false,
+									xhr : function() {
+										var xhr = $.ajaxSettings.xhr();
+										return xhr;
+									}
+								});
+
+						ajaxReq
+								.done(function(retour, textStatus, jqXHR) {
+									if (retour.ok) {
+										$("#spinner").addClass("d-none");
+
+										$("#dat_deb_et1").text(retour.data.dat_deb_et1);
+									
+										$("#dat_fin_et1").text(retour.data.dat_fin_et1);
+									
+										$("#dat_deb_et2").text(retour.data.dat_deb_et2);
+										
+										$("#dat_fin_et2").text(retour.data.dat_fin_et2);
+										
+										$("#dat_deb_et3").text(retour.data.dat_deb_et3);
+									
+										$("#dat_fin_et3").text(retour.data.dat_fin_et3);
+											
+									}
+								});
+
+						ajaxReq.fail(function(jqXHR) {
+							$("#spinner").addClass("d-none");
+						});
+						
+						 						
+					});
+</script>

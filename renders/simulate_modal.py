@@ -38,8 +38,11 @@ import modal
 
 APP_NAME    = "bicloo-multi-day"
 VOLUME_NAME = "bicloo-multi-day-results"
-CACHE_LOCAL = "renders/simulate/multi_day_results.pkl"
-RENDER_OUT  = "renders/simulate/simulate_multiday.png"
+# Version « demande usager » du refacto : on écrit à côté des anciens
+# artefacts (multi_day_results.pkl / simulate_multiday.*) pour garder
+# les deux versions et pouvoir les comparer.
+CACHE_LOCAL = "renders/simulate/multi_day_results_userdemand.pkl"
+RENDER_OUT  = "simulate_multiday_userdemand"   # → pres/fig/simulate_multiday_userdemand.pdf
 
 # Politique camion (override des défauts de simulate.py).
 TRUCK_START    = "06:00"
@@ -210,12 +213,119 @@ def fetch_latest_results() -> list[dict]:
 # Rendu — s'exécute localement, après réception des résultats.
 # ────────────────────────────────────────────────────────────────────────────
 
-def render_stratified(results: list[dict], out_path: str) -> str:
+def render_spring_only(results: list[dict], out_name: str) -> str:
+    """Rendu slide III.3 : barres groupées, strate printemps uniquement.
+
+    Pour chaque type de jour (semaine / week-end), deux barres — temps de
+    rupture moyen par jour sans redistribution vs avec notre camion
+    optimisé — avec barres d'erreur (SE inter-jours) et le gain Δ annoté.
+    Plus lisible qu'une courbe cumulée dont seule la valeur finale compte.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from renders._presstyle import apply_style, palette as P, save_pres
+
+    apply_style()
+
+    by_stratum: dict[tuple[DayType, Season], list[dict]] = defaultdict(list)
+    for r in results:
+        if not r["ok"]:
+            continue
+        d = date.fromisoformat(r["date"])
+        if _season(d) is Season.WARM:
+            by_stratum[(_day_type(d), _season(d))].append(r)
+
+    strata_order = [
+        (DayType.WD, Season.WARM),
+        (DayType.WE, Season.WARM),
+    ]
+
+    # Maximum théorique : toutes les stations en rupture 24 h/24. Sert de
+    # repère pour relativiser les heures de rupture mesurées.
+    ok = [r for r in results if r["ok"]]
+    n_stations = len(ok[0]["baseline"].per_station_rupture_min) if ok else 0
+    max_h = n_stations * 24
+
+    fig, ax = plt.subplots(figsize=(5.6, 3.0))
+    ax.grid(True, axis="y", alpha=0.5)
+    ax.set_axisbelow(True)
+
+    bar_w = 0.34
+    xs = np.arange(len(strata_order), dtype=float)
+    xticklabels: list[str] = []
+    y_max = 0.0
+
+    for i, stratum in enumerate(strata_order):
+        rs = by_stratum.get(stratum, [])
+        xticklabels.append(f"{stratum[0].value}\n{len(rs)} jours")
+        if not rs:
+            continue
+
+        # Conversion en heures-station : plus parlant que les minutes.
+        base = np.array([r["baseline"].total_rupture_min  for r in rs]) / 60.0
+        opt  = np.array([r["optimized"].total_rupture_min for r in rs]) / 60.0
+        sqrtN = max(1.0, np.sqrt(len(rs)))
+        base_m, opt_m = base.mean(), opt.mean()
+        base_se = base.std(ddof=1) / sqrtN if len(rs) > 1 else 0.0
+        opt_se  = opt.std(ddof=1)  / sqrtN if len(rs) > 1 else 0.0
+
+        b1 = ax.bar(i - bar_w / 2, base_m, bar_w, yerr=base_se, capsize=3,
+                    color=P.textmuted, edgecolor=P.tdark, linewidth=0.7,
+                    error_kw=dict(ecolor=P.tdark, lw=0.9),
+                    label="Sans redistribution" if i == 0 else "")
+        b2 = ax.bar(i + bar_w / 2, opt_m, bar_w, yerr=opt_se, capsize=3,
+                    color=P.surplus, edgecolor=P.tdark, linewidth=0.7,
+                    error_kw=dict(ecolor=P.tdark, lw=0.9),
+                    label="Avec notre camion optimisé" if i == 0 else "")
+
+        # Valeur en heures + part du maximum théorique, au cœur de la barre.
+        for rect, val in ((b1[0], base_m), (b2[0], opt_m)):
+            pct = (val / max_h * 100) if max_h else 0.0
+            ax.text(rect.get_x() + rect.get_width() / 2, val * 0.5,
+                    f"{val:.0f} h\n{pct:.0f} %",
+                    ha="center", va="center", fontsize=8.5,
+                    color="white", fontweight="bold", linespacing=1.45)
+
+        # Gain Δ moyen par jour, annoté au-dessus du groupe.
+        gain = np.array([(b - o) / b * 100 for b, o in zip(base, opt) if b > 0])
+        g_m  = gain.mean() if len(gain) else 0.0
+        sign = "−" if g_m >= 0 else "+"
+        g_color = P.surplus if g_m >= 0 else P.deficit
+        y_top = max(base_m + base_se, opt_m + opt_se)
+        y_max = max(y_max, y_top)
+        ax.text(i, y_top * 1.05,
+                f"{sign}{abs(g_m):.1f} %".replace(".", ","),
+                ha="center", va="bottom", fontsize=13, fontweight="bold",
+                color=g_color)
+
+    ax.set_xticks(xs)
+    ax.set_xticklabels(xticklabels, fontsize=9)
+    ax.set_ylabel("Heures-station en rupture\n(moyenne par jour)", fontsize=9)
+    ax.set_ylim(0, y_max * 1.34)
+    ax.set_title("Effet de notre camion optimisé  ·  printemps",
+                 fontsize=10.5, fontweight="bold", pad=6)
+    if max_h:
+        ax.text(0.5, 0.985,
+                f"Maximum théorique : {n_stations} stations × 24 h "
+                f"= {max_h:,} h-station/jour".replace(",", " "),
+                transform=ax.transAxes, ha="center", va="top",
+                fontsize=7.8, color=P.textmuted, style="italic")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.14), ncol=2,
+              fontsize=8.5, frameon=False)
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+
+    fig.tight_layout()
+    return str(save_pres(fig, out_name))
+
+
+def render_stratified(results: list[dict], out_name: str) -> str:
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
     import numpy as np
+    from renders._presstyle import apply_style, palette as P, figsize, save_pres
 
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    apply_style()
 
     by_stratum: dict[tuple[DayType, Season], list[dict]] = defaultdict(list)
     n_failed = 0
@@ -232,21 +342,17 @@ def render_stratified(results: list[dict], out_path: str) -> str:
         (DayType.WD, Season.WARM), (DayType.WE, Season.WARM),
     ]
 
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10), sharex=True, sharey=True)
-    fig.patch.set_facecolor("white")
+    fig, axes = plt.subplots(2, 2, figsize=(5.5, 4.0), sharex=True, sharey=True)
 
     for ax, stratum in zip(axes.flat, strata_order):
         rs = by_stratum.get(stratum, [])
-        ax.set_facecolor("#fafafa")
-        ax.grid(True, alpha=0.3)
-        for sp in ("top", "right"):
-            ax.spines[sp].set_visible(False)
 
         if not rs:
             ax.text(0.5, 0.5,
                     f"{_stratum_label(stratum)}\n(0 jours dans la strate)",
                     ha="center", va="center", transform=ax.transAxes,
-                    fontsize=12, color="#888", style="italic")
+                    fontsize=8.5, color=P.textmuted, style="italic")
+            ax.grid(False)
             continue
 
         # Tous les jours ont la même grille d'échantillonnage (1441 pts à
@@ -274,13 +380,13 @@ def render_stratified(results: list[dict], out_path: str) -> str:
                      if len(rs) > 1 else np.zeros_like(opt_mean))
 
         ax.fill_between(x, base_mean - base_sem, base_mean + base_sem,
-                        color="#6c7a89", alpha=0.22)
-        ax.plot(x, base_mean, color="#6c7a89", ls="--", lw=2,
-                label="Réalité (moyenne ± incertitude)")
+                        color=P.textmuted, alpha=0.22, linewidth=0)
+        ax.plot(x, base_mean, color=P.textmuted, ls="--", lw=1.4,
+                label="Réalité (moy. ± SE)")
         ax.fill_between(x, opt_mean - opt_sem, opt_mean + opt_sem,
-                        color="#2d5a9e", alpha=0.24)
-        ax.plot(x, opt_mean, color="#2d5a9e", ls="-", lw=2.5,
-                label="+ 1 camion (moyenne ± incertitude)")
+                        color=P.depot, alpha=0.24, linewidth=0)
+        ax.plot(x, opt_mean, color=P.depot, ls="-", lw=1.8,
+                label="+ 1 camion (moy. ± SE)")
 
         # Gain par jour : moyenne, et incertitude sur la moyenne (= σ/√N).
         per_day_gain = np.array([
@@ -297,29 +403,28 @@ def render_stratified(results: list[dict], out_path: str) -> str:
         sign = "−" if delta <= 0 else "+"
         bad_note = f"  ·  {n_bad}/{len(rs)} dégradés" if n_bad > 0 else ""
         ax.set_title(f"{_stratum_label(stratum)}  ·  {len(rs)} j  ·  "
-                     f"Δrupture = {sign}{abs(delta):.1f}% ± {g_sem:.1f}%"
+                     f"Δ = {sign}{abs(delta):.1f}% ± {g_sem:.1f}%"
                      f"{bad_note}",
-                     fontsize=10.5, fontweight="bold", pad=8)
-        ax.legend(loc="upper left", fontsize=9, framealpha=0.9)
+                     fontsize=8.5, fontweight="bold", pad=4)
+        ax.legend(loc="upper left", fontsize=6.5)
         ax.set_xlim(0, 24)
         ax.set_xticks(range(0, 25, 4))
-        ax.set_xticklabels([f"{h:02d}:00" for h in range(0, 25, 4)])
+        ax.set_xticklabels([f"{h:02d}:00" for h in range(0, 25, 4)], fontsize=7)
+        ax.tick_params(axis='y', labelsize=7)
 
     for ax in axes[1]:
-        ax.set_xlabel("Heure", fontsize=11)
+        ax.set_xlabel("Heure", fontsize=8.5)
     for ax in axes[:, 0]:
-        ax.set_ylabel("Rupture cumulée (min)", fontsize=11)
+        ax.set_ylabel("Rupture cumulée (min)", fontsize=8.5)
 
     n_ok = sum(len(v) for v in by_stratum.values())
-    fig.suptitle(f"Valeur marginale d'1 camion supplémentaire (boucle "
-                 f"{TRUCK_START}→{TRUCK_END}, repos {TRUCK_REST_MIN} min)\n"
-                 f"Bicloo Nantes sur {n_ok} jours  ·  bande = incertitude (σ/√N)"
+    fig.suptitle(f"Valeur marginale d'1 camion supplémentaire "
+                 f"({TRUCK_START}→{TRUCK_END}, repos {TRUCK_REST_MIN} min)  ·  "
+                 f"{n_ok} jours  ·  bande = SE"
                  + (f"  ({n_failed} échecs)" if n_failed else ""),
-                 fontsize=13, fontweight="bold", y=1.005)
+                 fontsize=9.5, fontweight="bold", y=1.005)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    return out_path
+    return str(save_pres(fig, out_name))
 
 
 def _print_summary(results: list[dict]) -> None:

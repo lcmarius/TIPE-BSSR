@@ -22,6 +22,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from renders._presstyle import apply_style, palette as P, figsize, save_pres
+
+# Les timestamps en base sont en UTC naïf — cf. src/utils/timezone.py.
+# On convertit en local Paris à la lecture pour que dt.hour / dt.date /
+# dt.dayofweek correspondent à de l'heure locale.
+
 
 DEFAULT_CLEAN_DIR  = "data/clean"
 DEFAULT_OUT_DIR    = "renders"
@@ -54,6 +60,14 @@ def load_clean_dir(clean_dir: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
                 "SELECT station_number, name, capacity, geo_lat AS lat, geo_long AS long "
                 "FROM stations", con)
         con.close()
+        # UTC naïf → local Paris (gère DST), puis on retire le tz pour rester
+        # en datetime64[ns] (numpy/pandas naïf) — c'est ce que `.dt.date` /
+        # `.dt.hour` consomment naturellement en aval.
+        for df in (h, m):
+            df['timestamp'] = (df['timestamp']
+                               .dt.tz_localize('UTC')
+                               .dt.tz_convert('Europe/Paris')
+                               .dt.tz_localize(None))
         histories.append(h)
         movements.append(m)
     return (pd.concat(histories, ignore_index=True),
@@ -68,7 +82,7 @@ def load_clean_dir(clean_dir: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
 def _render_single_dimension(movements: pd.DataFrame,
                               group_col: str,
                               group_values: list[tuple[object, str, str]],
-                              output_file: str,
+                              output_name: str,
                               title: str | None,
                               source_filter: str | None) -> None:
     """Helper : trace 2 courbes superposées (1 par valeur du groupe) avec
@@ -92,8 +106,8 @@ def _render_single_dimension(movements: pd.DataFrame,
     date_meta = df.groupby('date').agg(**{group_col: (group_col, 'first')}).reset_index()
     counts = counts.merge(date_meta, on='date')
 
-    fig, ax = plt.subplots(figsize=(11, 5))
-    ax.set_facecolor("#fafafa")
+    apply_style()
+    fig, ax = plt.subplots(figsize=figsize("wide"))
 
     daily_totals: dict[object, float] = {}
     for value, label, color in group_values:
@@ -107,8 +121,8 @@ def _render_single_dimension(movements: pd.DataFrame,
         std  = pivot.std(axis=0)
         ax.fill_between(range(24), mean - std, mean + std,
                         color=color, alpha=0.18, linewidth=0)
-        ax.plot(range(24), mean.values, color=color, lw=2.4,
-                label=label, alpha=0.92)
+        ax.plot(range(24), mean.values, color=color, lw=2.0,
+                label=label, alpha=0.95)
         daily_totals[value] = pivot.sum(axis=1).mean()
 
     if len(group_values) == 2 and all(v[0] in daily_totals for v in group_values):
@@ -120,68 +134,58 @@ def _render_single_dimension(movements: pd.DataFrame,
             else:
                 hi_lbl, lo_lbl, delta = lbl1, lbl0, (t1 - t0) / t0 * 100
             ax.text(0.02, 0.97, f"{hi_lbl} : +{delta:.0f}% vs {lo_lbl}",
-                    transform=ax.transAxes, ha='left', va='top', fontsize=10,
-                    bbox=dict(boxstyle='round,pad=0.4', facecolor='white',
-                              edgecolor='#bbb', alpha=0.95))
+                    transform=ax.transAxes, ha='left', va='top', fontsize=8.5,
+                    bbox=dict(boxstyle='round,pad=0.35', facecolor='white',
+                              edgecolor=P.textmuted, alpha=0.95))
 
     ax.set_xlabel("Heure de la journée")
-    ax.set_ylabel("Mouvements / heure  (moyenne ± 1σ)")
+    ax.set_ylabel("Mouvements / heure (moyenne ± 1σ)")
     ax.set_xticks(range(0, 24, 2))
     ax.set_xticklabels([f"{h}h" for h in range(0, 24, 2)])
     ax.set_xlim(-0.3, 23.3)
-    ax.grid(alpha=0.3)
-    ax.legend(loc='upper right', fontsize=10, frameon=True, framealpha=0.95)
-    for s in ('top', 'right'):
-        ax.spines[s].set_visible(False)
+    ax.legend(loc='upper right')
     if title:
-        ax.set_title(title, fontsize=12)
+        ax.set_title(title, fontsize=10)
 
     fig.tight_layout()
-    fig.savefig(output_file, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    save_pres(fig, output_name)
 
 
-def render_day_type_effect(movements: pd.DataFrame, output_file: str,
+def render_day_type_effect(movements: pd.DataFrame, output_name: str,
                             title: str | None = None,
                             source_filter: str | None = "USER") -> None:
-    """Effet « jour ouvré vs week-end », saisons confondues.
-
-    Justifie isolément la première dimension du découpage en cellules.
-    """
+    """Effet « jour ouvré vs week-end », saisons confondues."""
     df = movements.copy()
     df['day_type'] = np.where(df['timestamp'].dt.dayofweek >= 5, 'WE', 'ouvré')
     _render_single_dimension(
         df, 'day_type',
-        [('ouvré', "Jours ouvrés", '#5a2d82'),
-         ('WE',    "Week-end",    '#2e7d32')],
-        output_file=output_file,
+        [('ouvré', "Jours ouvrés", P.purple),
+         ('WE',    "Week-end",    P.surplus)],
+        output_name=output_name,
         title=title or "Effet du type de jour sur la demande (saisons confondues)",
         source_filter=source_filter,
     )
 
 
-def render_season_effect(movements: pd.DataFrame, output_file: str,
+def render_season_effect(movements: pd.DataFrame, output_name: str,
                           title: str | None = None,
                           split_date: str = DEFAULT_SPLIT_DATE,
                           source_filter: str | None = "USER") -> None:
-    """Effet « froid vs tempéré », jours ouvrés et week-end confondus.
-
-    Justifie isolément la seconde dimension du découpage en cellules.
-    """
+    """Effet « froid vs tempéré », jours ouvrés et week-end confondus."""
     split = date_cls.fromisoformat(split_date)
     df = movements.copy()
     df['regime'] = np.where(
         df['timestamp'].dt.date.astype('object') < split, 'froid', 'tempéré')
     _render_single_dimension(
         df, 'regime',
-        [('froid',   "Régime froid",   '#1f4e79'),
-         ('tempéré', "Régime tempéré", '#c14a09')],
-        output_file=output_file,
+        [('froid',   "Régime froid",   P.depot),
+         ('tempéré', "Régime tempéré", P.accent)],
+        output_name=output_name,
         title=title or "Effet de la saison sur la demande (jours confondus)",
         source_filter=source_filter,
     )
 
-def render_seasonal_split(movements: pd.DataFrame, output_file: str,
+def render_seasonal_split(movements: pd.DataFrame, output_name: str,
                           title: str | None = None,
                           split_date: str = DEFAULT_SPLIT_DATE,
                           source_filter: str | None = "USER") -> None:
@@ -212,13 +216,14 @@ def render_seasonal_split(movements: pd.DataFrame, output_file: str,
         regime    =('regime',     'first')).reset_index()
     counts = counts.merge(date_meta, on='date')
 
-    REGIME_COLORS = {'froid': '#1f4e79', 'tempéré': '#c14a09'}
+    REGIME_COLORS = {'froid': P.depot, 'tempéré': P.accent}
     REGIME_LABEL  = {'froid':   "Régime froid",
                      'tempéré': "Régime tempéré"}
 
-    fig, (ax_wd, ax_we) = plt.subplots(1, 2, figsize=(14, 5.5), sharey=True)
+    apply_style()
+    fig, (ax_wd, ax_we) = plt.subplots(1, 2, figsize=figsize("double"), sharey=True)
     if title:
-        fig.suptitle(title, fontsize=12, y=1.01)
+        fig.suptitle(title, fontsize=10.5, fontweight='bold', y=1.01)
 
     for ax, is_weekend, panel_title in [
         (ax_wd, False, "Jours ouvrés (Lun → Ven)"),
@@ -237,8 +242,8 @@ def render_seasonal_split(movements: pd.DataFrame, output_file: str,
             ax.fill_between(range(24), mean - std, mean + std,
                             color=REGIME_COLORS[regime], alpha=0.18, linewidth=0)
             ax.plot(range(24), mean.values,
-                    color=REGIME_COLORS[regime], lw=2.4,
-                    label=REGIME_LABEL[regime], alpha=0.92)
+                    color=REGIME_COLORS[regime], lw=2.0,
+                    label=REGIME_LABEL[regime], alpha=0.95)
 
         daily_totals = subset.groupby(['date', 'regime'])['count'].sum().reset_index()
         cold = daily_totals[daily_totals['regime'] == 'froid']['count'].values
@@ -251,25 +256,20 @@ def render_seasonal_split(movements: pd.DataFrame, output_file: str,
                 hi_lbl, lo_lbl = REGIME_LABEL['froid'], REGIME_LABEL['tempéré']
                 delta = (cold.mean() - warm.mean()) / warm.mean() * 100
             ax.text(0.02, 0.97, f"{hi_lbl} : +{delta:.0f}% vs {lo_lbl}",
-                    transform=ax.transAxes, ha='left', va='top', fontsize=10,
-                    bbox=dict(boxstyle='round,pad=0.4', facecolor='white',
-                              edgecolor='#bbb', alpha=0.95))
+                    transform=ax.transAxes, ha='left', va='top', fontsize=8,
+                    bbox=dict(boxstyle='round,pad=0.35', facecolor='white',
+                              edgecolor=P.textmuted, alpha=0.95))
 
-        ax.set_title(panel_title, fontsize=11, fontweight='bold')
+        ax.set_title(panel_title, fontsize=9.5, fontweight='bold')
         ax.set_xlabel("Heure de la journée")
         ax.set_xticks(range(0, 24, 2))
-        ax.set_xticklabels([f"{h}h" for h in range(0, 24, 2)])
+        ax.set_xticklabels([f"{h}h" for h in range(0, 24, 2)], fontsize=7.5)
         ax.set_xlim(-0.3, 23.3)
-        ax.set_facecolor("#fafafa")
-        ax.grid(alpha=0.3)
-        ax.legend(loc='upper right', fontsize=9, frameon=True, framealpha=0.95)
-        for s in ('top', 'right'):
-            ax.spines[s].set_visible(False)
+        ax.legend(loc='upper right', fontsize=8)
 
-    ax_wd.set_ylabel("Mouvements / heure  (moyenne ± 1σ)")
+    ax_wd.set_ylabel("Mouvements / heure (moyenne ± 1σ)")
     fig.tight_layout()
-    fig.savefig(output_file, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    save_pres(fig, output_name)
 
 
 # ============================================================================
@@ -284,32 +284,24 @@ def main():
                    help="Date de séparation froid/tempéré (défaut: équinoxe de printemps)")
     args = p.parse_args()
 
-    os.makedirs(args.out_dir, exist_ok=True)
-    out = lambda name: os.path.join(args.out_dir, name)
-
     print(f"[{datetime.now():%H:%M:%S}] Chargement de tous les clean_*.sql dans {args.clean_dir}")
     _, movements, _ = load_clean_dir(args.clean_dir)
     n_days = movements['timestamp'].dt.date.nunique()
     print(f"  {len(movements):,} mouvements · {n_days} jours")
 
-    print(f"[{datetime.now():%H:%M:%S}] (1/3) effect_day_type.png")
-    render_day_type_effect(
-        movements, output_file=out("effect_day_type.png"),
-        source_filter="USER")
+    print(f"[{datetime.now():%H:%M:%S}] (1/3) effect_day_type")
+    render_day_type_effect(movements, output_name="effect_day_type",
+                           source_filter="USER")
 
-    print(f"[{datetime.now():%H:%M:%S}] (2/3) effect_season.png")
-    render_season_effect(
-        movements, output_file=out("effect_season.png"),
-        split_date=args.split_date, source_filter="USER")
+    print(f"[{datetime.now():%H:%M:%S}] (2/3) effect_season")
+    render_season_effect(movements, output_name="effect_season",
+                         split_date=args.split_date, source_filter="USER")
 
-    print(f"[{datetime.now():%H:%M:%S}] (3/3) seasonal_split.png")
+    print(f"[{datetime.now():%H:%M:%S}] (3/3) seasonal_split")
     render_seasonal_split(
-        movements, output_file=out("seasonal_split.png"),
+        movements, output_name="seasonal_split",
         title="Synthèse 4 cellules — combinaison saison × type de jour",
         split_date=args.split_date, source_filter="USER")
-
-    print(f"[{datetime.now():%H:%M:%S}] Écrits dans {args.out_dir}/ : "
-          f"effect_day_type.png, effect_season.png, seasonal_split.png")
 
 
 if __name__ == "__main__":

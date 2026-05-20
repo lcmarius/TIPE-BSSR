@@ -1,29 +1,30 @@
-"""Simulation contrefactuelle : valeur marginale d'un camion supplémentaire
-ajouté à la flotte Bicloo Nantes existante, sur une journée réelle.
+"""Simulation contrefactuelle : effet de notre camion optimisé sur la
+demande usager pure d'une journée réelle.
 
-Cadrage : Bicloo opère déjà 3-4 camions de rééquilibrage par jour (visible
-dans la donnée comme `source = 'TRUCK'`). On **ne les remplace pas** ; on
-en ajoute UN, piloté par notre solveur. Le gain mesuré est donc la
-**valeur marginale** d'un camion supplémentaire dans la flotte.
+Cadrage : on évalue notre algorithme de tournée (méthode 1 + ILS) sur le
+problème de redistribution tel que posé. On **ignore la flotte Bicloo
+existante** — ses mouvements (`source = 'TRUCK'`) sont écartés, dans la
+continuité de III.1 où l'on isole déjà la demande usager. La baseline est
+donc le réseau **sans aucune redistribution**, soumis à la seule demande
+usager ; notre camion optimisé s'y ajoute.
 
 Principe :
 
   1. État initial à 00:00 = `available_bikes` premier snapshot de chaque
      station dans `station_history`.
-  2. On rejoue chronologiquement TOUS les `bike_movements` (USER + TRUCK
-     opérateur). Saturation aux bornes : un DEPARTURE sur station vide ou
-     un ARRIVAL sur station pleine ne change pas le stock, et incrémente
-     le compteur `demande perdue` *seulement* si l'événement est USER (un
-     échec opérationnel du TRUCK n'est pas une perte usager).
-  3. Politique « camion supplémentaire en boucle » : au départ (`--start`),
-     le camion lance une tournée. Targeter Skellam → solver (method1 + ILS) ;
-     on connaît le temps d'arrivée à chaque station et on applique
+  2. On rejoue chronologiquement les `bike_movements` de **source USER**
+     uniquement. Saturation aux bornes : un DEPARTURE sur station vide ou
+     un ARRIVAL sur station pleine ne change pas le stock et incrémente le
+     compteur `demande perdue` (demande usager non satisfaite).
+  3. Politique « camion en boucle » : au départ (`--start`), notre camion
+     lance une tournée. Targeter Skellam → solver (method1 + ILS) ; on
+     connaît le temps d'arrivée à chaque station et on applique
      `count_i += -bike_gap_i` (clampé à `[0, capacity_i]`) au passage.
      Une fois rentré, repos `--rest` minutes puis nouvelle tournée, tant
      que le départ suivant tombe avant `--end`.
   4. On intègre par station le temps passé en rupture (count==0 ou
-     count==capacity). Sortie : une figure à 2 courbes (réalité observée
-     vs réalité + notre camion) + chiffre titre `−X %`.
+     count==capacity). Sortie : une figure à 2 courbes (demande usager
+     seule vs demande usager + notre camion) + chiffre titre `−X %`.
 
 Usage :
     python -m renders.simulate --date 2026-04-15
@@ -48,6 +49,7 @@ from src.solver.algorithm.builder.method1 import method1
 from src.solver.algorithm.incrementer.ils import ils
 from src.solver.graph import SolvingStationGraph
 from src.solver.map import GeoPoint, Map
+from src.utils.timezone import utc_naive_to_local
 from src.solver.solver import create_graph, is_graph_solvable
 from src.targeter.targeter import InfeasibleInstance, compute_adjusted_targets
 
@@ -156,12 +158,13 @@ def _load_or_build_time_matrix(road_map: Map, stations: list[Station],
 # ============================================================================
 
 def _load_day(db_path: str) -> tuple[list[Station], dict[int, int],
-                                      list[tuple[datetime, int, str, str]]]:
-    """Stations + comptes initiaux + flux USER **et** TRUCK ordonné.
+                                      list[tuple[datetime, int, str]]]:
+    """Stations + comptes initiaux + flux **USER** ordonné chronologiquement.
 
-    Le TRUCK ici est celui de l'opérateur (visible dans la donnée scrapée).
-    Il fait déjà partie de la « réalité observée » sur laquelle s'appuie
-    la baseline. Notre camion à nous s'ajoute par-dessus dans `run_scenario`.
+    On ne charge que les mouvements `source = 'USER'` : la flotte Bicloo
+    existante (`source = 'TRUCK'`) est écartée — la baseline est le réseau
+    sans aucune redistribution. Notre camion s'ajoute par-dessus dans
+    `run_scenario`.
     """
     con = sqlite3.connect(db_path)
     # Station(number, name, capacity, address, long, lat) — long avant lat.
@@ -184,12 +187,16 @@ def _load_day(db_path: str) -> tuple[list[Station], dict[int, int],
     initial = {n: c for n, c in init_rows}
 
     ev_rows = con.execute("""
-        SELECT timestamp, station_number, movement_type, source
+        SELECT timestamp, station_number, movement_type
         FROM bike_movements
+        WHERE source = 'USER'
         ORDER BY timestamp
     """).fetchall()
-    events = [(datetime.fromisoformat(ts), sn, mt, src)
-              for ts, sn, mt, src in ev_rows]
+    # Les timestamps en base sont UTC naïfs ; on bascule en local Paris pour
+    # que les comparaisons avec `day_start = combine(day, 00:00)` (interprété
+    # en local) restent cohérentes. cf. src/utils/timezone.py.
+    events = [(utc_naive_to_local(datetime.fromisoformat(ts)), sn, mt)
+              for ts, sn, mt in ev_rows]
     con.close()
     return stations, initial, events
 
@@ -236,12 +243,13 @@ class Simulator:
             self.rupture_s[s] += (t - self.last_t[s]).total_seconds()
         self.last_t[s] = t
 
-    def apply_movement(self, t: datetime, s: int, kind: str, source: str) -> None:
-        """Mouvement unitaire (USER ou TRUCK opérateur, +1 / −1 sur le stock).
+    def apply_movement(self, t: datetime, s: int, kind: str) -> None:
+        """Mouvement usager unitaire (+1 ARRIVAL / −1 DEPARTURE sur le stock).
 
-        Saturation : on clampe aux bornes physiques [0, capacity]. Côté
-        compteur `lost`, on n'incrémente QUE pour les USER : un échec
-        opérationnel du TRUCK opérateur n'est pas une perte usager.
+        Saturation : on clampe aux bornes physiques [0, capacity]. Tout
+        mouvement bloqué par une borne (départ d'une station vide, arrivée
+        sur une station pleine) incrémente `lost` — une demande usager
+        non satisfaite.
         """
         if s not in self.count:
             return
@@ -249,12 +257,12 @@ class Simulator:
         if kind == "DEPARTURE":
             if self.count[s] > 0:
                 self.count[s] -= 1
-            elif source == "USER":
+            else:
                 self.lost += 1
         else:  # ARRIVAL
             if self.count[s] < self.cap[s]:
                 self.count[s] += 1
-            elif source == "USER":
+            else:
                 self.lost += 1
 
     def apply_truck(self, t: datetime, s: int, delta: int) -> None:
@@ -360,19 +368,18 @@ class SimulationResult:
 
 def run_scenario(label: str, policy: DispatchPolicy | None, day: date,
                  stations_master: list[Station], initial_counts: dict[int, int],
-                 events_real: list[tuple[datetime, int, str, str]],
+                 user_events: list[tuple[datetime, int, str]],
                  depot: Station, road_map: Map,
                  time_cache: dict[int, dict[int, float]],
                  truck_capacity: int, clean_dir: str
                  ) -> SimulationResult:
     """Joue la politique sur la journée et renvoie la trace temporelle.
 
-    `events_real` contient TOUS les mouvements (USER + TRUCK opérateur).
-    `policy=None` ⇒ baseline : on rejoue uniquement la réalité observée,
-    sans camion supplémentaire.
-    Sinon : à `policy.start`, notre camion **s'ajoute** au flux réel pour
-    une tournée. Quand elle se termine, on déclenche la suivante après
-    `policy.rest_s` de repos, tant qu'on est avant `policy.end`.
+    `user_events` contient les mouvements USER de la journée.
+    `policy=None` ⇒ baseline : demande usager seule, **sans redistribution**.
+    Sinon : à `policy.start`, notre camion lance une tournée. Quand elle se
+    termine, on déclenche la suivante après `policy.rest_s` de repos, tant
+    qu'on est avant `policy.end`.
     """
     day_start = datetime.combine(day, datetime.min.time())
     day_end   = day_start + timedelta(days=1)
@@ -382,7 +389,7 @@ def run_scenario(label: str, policy: DispatchPolicy | None, day: date,
     # Tiebreaker numérique (0/1/2) à timestamp égal pour éviter la
     # comparaison du payload de types hétérogènes.
     heap: list[tuple[datetime, int, str, object]] = []
-    for ev in events_real:
+    for ev in user_events:
         if day_start <= ev[0] < day_end:
             heapq.heappush(heap, (ev[0], 0, "movement", ev))
     if policy is not None:
@@ -415,8 +422,8 @@ def run_scenario(label: str, policy: DispatchPolicy | None, day: date,
             break
 
         if kind == "movement":
-            _, s, mtype, source = payload  # type: ignore[misc]
-            sim.apply_movement(t, s, mtype, source)
+            _, s, mtype = payload  # type: ignore[misc]
+            sim.apply_movement(t, s, mtype)
 
         elif kind == "truck":
             s, delta = payload      # type: ignore[misc]
@@ -474,21 +481,21 @@ def render(baseline: SimulationResult, optimized: SimulationResult,
 
     ax.plot(baseline.times, baseline.rupture_min_cum, color=BASELINE_COLOR,
             ls="--", lw=2.2,
-            label=(f"Réalité observée (flotte Bicloo actuelle) — "
+            label=(f"Sans redistribution (demande usager seule) — "
                    f"{baseline.total_rupture_min:.0f} min"),
             zorder=3)
     ax.plot(optimized.times, optimized.rupture_min_cum, color=OPTIMIZED_COLOR,
             ls="-", lw=2.8,
-            label=(f"Réalité + 1 camion supplémentaire — "
+            label=(f"Avec notre camion optimisé — "
                    f"{optimized.total_rupture_min:.0f} min  (−{gain:.1f} %)"),
             zorder=3)
     for dt_disp in optimized.dispatch_times:
         ax.axvline(dt_disp, color=OPTIMIZED_COLOR, ls=":", alpha=0.45,
                    lw=1.0, zorder=1)
 
-    title = (f"Valeur marginale d'un camion supplémentaire dans la flotte Bicloo — "
+    title = (f"Effet de notre camion optimisé sur la demande usager — "
              f"Nantes, {day.strftime('%d/%m/%Y')}\n"
-             f"−{gain:.1f} % de minutes-station en rupture vs flotte actuelle")
+             f"−{gain:.1f} % de minutes-station en rupture")
     ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
 
     ax.set_ylabel("Minutes-station en rupture (cumul sur la journée)", fontsize=11)
@@ -505,8 +512,8 @@ def render(baseline: SimulationResult, optimized: SimulationResult,
     ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
 
-    note = ("Hypothèse statique (H4) : demande USER indépendante de l'état des "
-            "stations — la baseline surestime donc la rupture réellement observable.")
+    note = ("Hypothèse statique : demande usager indépendante de l'état des stations. "
+            "Évaluation contrefactuelle — la redistribution Bicloo réelle n'est pas rejouée.")
     fig.text(0.5, -0.01, note, ha="center", va="top", fontsize=8.5,
              style="italic", color="#6c7a89")
 
@@ -569,10 +576,10 @@ def simulate_for_date(date_str: str, *,
     )
 
     log(f"[4/4] Baseline + {policy.label()}")
-    baseline = run_scenario("Réalité observée (USER + TRUCK opérateur)", None,
+    baseline = run_scenario("Demande usager seule (sans redistribution)", None,
                             day, stations, initial, events, depot, road_map,
                             time_cache, capacity, clean_dir)
-    optimized = run_scenario("Réalité + 1 camion supplémentaire", policy, day,
+    optimized = run_scenario("Demande usager + camion optimisé", policy, day,
                              stations, initial, events, depot, road_map,
                              time_cache, capacity, clean_dir)
     return baseline, optimized

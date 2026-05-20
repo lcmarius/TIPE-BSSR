@@ -26,10 +26,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import LineCollection
 
+from src.utils.timezone import local_to_utc_naive
+from renders._presstyle import apply_style, palette as P, figsize, save_pres
+
 
 DEFAULT_CLEAN_DIR = "data/clean"
 DEFAULT_GRAPHML   = "data/nantes_graph.graphml"
-DEFAULT_OUT_PATH  = "renders/net_flow_morning.png"
+DEFAULT_OUT_NAME  = "asymmetry_morning"        # → pres/fig/<>.pdf
 DEFAULT_WINDOW    = (7, 9)
 
 
@@ -52,10 +55,14 @@ def _load_stations(path: str) -> dict[int, tuple[float, float, int, str]]:
 
 
 def _scan_day(path: str, h_start: int, h_end: int) -> dict[int, int]:
-    """station_number → (n_arrivals − n_departures) USER sur [h_start, h_end[."""
+    """station_number → (n_arrivals − n_departures) USER sur [h_start, h_end[
+    en heure LOCALE Paris (les bornes sont converties en UTC pour le filtre SQL).
+    """
     d = _date_from_clean(path)
-    t_start = f"{d.isoformat()} {h_start:02d}:00:00"
-    t_end   = f"{d.isoformat()} {h_end:02d}:00:00"
+    start_local = datetime(d.year, d.month, d.day, h_start, 0, 0)
+    end_local   = datetime(d.year, d.month, d.day, h_end,   0, 0)
+    t_start = local_to_utc_naive(start_local).strftime("%Y-%m-%d %H:%M:%S")
+    t_end   = local_to_utc_naive(end_local).strftime("%Y-%m-%d %H:%M:%S")
 
     con = sqlite3.connect(path)
     rows = con.execute("""
@@ -77,21 +84,13 @@ def _scan_day(path: str, h_start: int, h_end: int) -> dict[int, int]:
 def render(stations: dict[int, tuple[float, float, int, str]],
            avg_net: dict[int, float], n_days: int,
            window: tuple[int, int], graphml_path: str | None,
-           saturate_pct: float, out_path: str) -> str:
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-
-    fig, ax = plt.subplots(figsize=(11, 11))
-    fig.patch.set_facecolor("white")
-    ax.set_facecolor("white")
-
-    if graphml_path and os.path.exists(graphml_path):
-        import osmnx as ox
-        g = ox.load_graphml(graphml_path)
-        segs = [[(g.nodes[u]['x'], g.nodes[u]['y']),
-                 (g.nodes[v]['x'], g.nodes[v]['y'])]
-                for u, v in g.edges(keys=False)]
-        ax.add_collection(LineCollection(segs, colors="#d0d4d8",
-                                          linewidths=0.4, alpha=0.7, zorder=1))
+           saturate_pct: float, out_name: str) -> str:
+    apply_style()
+    fig, ax = plt.subplots(figsize=figsize("map"))
+    ax.grid(False)
+    # `graphml_path` est ignoré : on ne dessine pas la carte routière en
+    # arrière-plan, seules les stations comptent ; le placement géographique
+    # (lat/long) suffit à reconnaître Nantes.
 
     xs, ys, cs, sizes = [], [], [], []
     for sn, (lat, lon, cap, _) in stations.items():
@@ -101,7 +100,7 @@ def render(stations: dict[int, tuple[float, float, int, str]],
         xs.append(lon)
         ys.append(lat)
         cs.append(v)
-        sizes.append(28 + 4 * cap)
+        sizes.append(22 + 3 * cap)
     if not xs:
         raise SystemExit("Aucune donnée à tracer.")
 
@@ -111,7 +110,7 @@ def render(stations: dict[int, tuple[float, float, int, str]],
         vmax = float(max(abs_vals) or 1.0)
     cmap = plt.get_cmap("RdBu_r")
     sc = ax.scatter(xs, ys, c=cs, cmap=cmap, vmin=-vmax, vmax=+vmax,
-                    s=sizes, edgecolor="#23373b", linewidth=0.6,
+                    s=sizes, edgecolor=P.tdark, linewidth=0.4,
                     alpha=0.95, zorder=3)
 
     pad = 0.005
@@ -122,24 +121,20 @@ def render(stations: dict[int, tuple[float, float, int, str]],
     for sp in ("top", "right", "bottom", "left"):
         ax.spines[sp].set_visible(False)
 
-    # Titre en haut.
     h_start, h_end = window
-    ax.set_title(f"Vélos gagnés ou perdus par station entre {h_start}h et {h_end}h\n"
-                 f"moyenne sur {n_days} jours ouvrés",
-                 fontsize=14, fontweight="bold", color="#23373b", pad=14)
+    ax.set_title(f"Gain de vélos par station entre {h_start}h et {h_end}h\n"
+                 f"en moyenne sur {n_days} jours",
+                 fontsize=9, fontweight="bold", pad=5)
 
-    # Colorbar incrustée dans le coin bas-gauche.
-    cax = ax.inset_axes([0.02, 0.025, 0.32, 0.028])
+    cax = ax.inset_axes([0.02, 0.025, 0.36, 0.022])
     cb = fig.colorbar(sc, cax=cax, orientation="horizontal")
     cb.outline.set_visible(False)
-    cb.ax.tick_params(labelsize=11, length=3, pad=3)
+    cb.ax.tick_params(labelsize=8, length=2.5, pad=2)
     cb.set_ticks([-vmax, 0, +vmax])
     cb.set_ticklabels([f"−{vmax:.0f}\nperdus", "0", f"+{vmax:.0f}\ngagnés"])
 
     fig.subplots_adjust(left=0, right=1, top=0.94, bottom=0)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight", pad_inches=0.1)
-    plt.close(fig)
-    return out_path
+    return str(save_pres(fig, out_name))
 
 
 def main() -> None:
@@ -152,7 +147,8 @@ def main() -> None:
     p.add_argument("--saturate", type=float, default=95.0,
                    help="Percentile de saturation de l'échelle (défaut: 95)")
     p.add_argument("--weekends-only", action="store_true")
-    p.add_argument("--out", default=DEFAULT_OUT_PATH)
+    p.add_argument("--out", default=DEFAULT_OUT_NAME,
+                   help="Nom de la figure dans pres/fig/ (sans extension)")
     args = p.parse_args()
 
     files = sorted(glob.glob(os.path.join(args.clean_dir, "clean_*.sql")))

@@ -24,6 +24,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 from src.objects.station import Station, TargetedStation
+from renders._presstyle import apply_style, palette as P, figsize, save_pres
 
 
 # Dépendances inline — on n'importe NI matplotlib (renders.render_sweep le pull
@@ -53,12 +54,12 @@ TRUCK_CAPACITY  = 30
 BUDGET_S        = 180.0    # 3 min par instance
 NODE_BUDGET     = 10**12   # de fait illimite — seul le temps borne
 
-OUT_PNG   = Path("renders/bb_timing.png")
+OUT_NAME  = "bb_timing"                       # → pres/fig/bb_timing.pdf
 OUT_CACHE = Path("renders/bb_timing_data.json")
 
-COL_BB   = "#C0392B"     # rouge — courbe d'explosion
-COL_TO   = "#7F1D1D"     # marqueurs timeout
-TEXT     = "#23373B"
+COL_BB   = P.deficit       # rouge : courbe d'explosion B&B
+COL_TO   = P.deficit_dark  # rouge foncé : marqueurs timeout
+TEXT     = P.tdark
 sys.setrecursionlimit(50_000)
 
 
@@ -271,9 +272,8 @@ def _fmt_dur(s: float) -> str:
 def render(data: dict) -> None:
     import matplotlib.pyplot as plt  # lazy : pas requis par les workers
 
-    # On ne trace que les n ou la majorite des instances ont fini sous budget.
-    # La mediane (sur les instances finies) est plus robuste que la moyenne
-    # quand quelques TO traînent.
+    apply_style()
+
     rows_clean = [r for r in data["rows"]
                   if r.get("n_clean", 0) >= max(1, r.get("n_total", 1) // 2)
                   and r.get("bb_median") is not None]
@@ -282,13 +282,11 @@ def render(data: dict) -> None:
     bb_min  = [r["bb_min"]    for r in rows_clean]
     bb_max  = [r["bb_max"]    for r in rows_clean]
 
-    fig, ax = plt.subplots(figsize=(8.6, 5.0))
-    fig.patch.set_facecolor("white")
-    ax.set_facecolor("#fafafa")
+    fig, ax = plt.subplots(figsize=figsize("std"))
 
     ax.fill_between(ns, bb_min, bb_max, color=COL_BB, alpha=0.18, linewidth=0,
                     zorder=2)
-    ax.plot(ns, bb_med, color=COL_BB, lw=2.4, marker="o", ms=6,
+    ax.plot(ns, bb_med, color=COL_BB, lw=2.0, marker="o", ms=5,
             label="Branch-and-Bound (mesuré, médiane)", zorder=4)
 
     # ────────────────────────────────────────────────────────────────────
@@ -313,32 +311,29 @@ def render(data: dict) -> None:
         n_target     = 30
         ext_ns       = list(range(n_last_clean, n_target + 1))
         ext_ys       = [math.exp(intercept + slope * n) for n in ext_ns]
-        ax.plot(ext_ns, ext_ys, color=COL_BB, lw=2.0, ls="--", alpha=0.85,
+        ax.plot(ext_ns, ext_ys, color=COL_TO, lw=1.6, ls="--", alpha=0.85,
                 zorder=3,
-                label=f"extrapolation  (×{factor:.2f} / station)")
+                label="extrapolation")
 
-        # Annotation a n=30
+        # Label sous l'extrémité de la courbe extrapolée (pas dessus) — évite
+        # la superposition avec la pointe et la légende "extrapolation".
         ax.annotate(f"≈ {_fmt_dur(ext_ys[-1])}\nà n=30",
                     xy=(ext_ns[-1], ext_ys[-1]),
-                    xytext=(-12, -8), textcoords="offset points",
-                    fontsize=11, color=COL_BB, fontweight="bold",
-                    ha="right", va="center")
+                    xytext=(0, -28), textcoords="offset points",
+                    fontsize=9.5, color=COL_BB, fontweight="bold",
+                    ha="center", va="top")
 
     ax.set_yscale("log")
-    ax.set_xlabel("Nombre de stations  n", fontsize=11, color=TEXT)
-    ax.set_ylabel("Temps de résolution (échelle log)", fontsize=11, color=TEXT)
+    ax.set_xlabel("Nombre de stations  n")
+    ax.set_ylabel("Temps de résolution (échelle log)")
     ax.set_xticks(list(range(4, 31, 2)))
     ax.set_xlim(3.5, 30.5)
-    ax.grid(True, alpha=0.3, which="both")
-    for spine in ("top", "right"):
-        ax.spines[spine].set_visible(False)
+    ax.grid(True, alpha=0.5, which="both")
 
-    ax.legend(loc="upper left", frameon=False, fontsize=11)
+    ax.legend(loc="upper left", fontsize=8.5)
 
     fig.tight_layout()
-    OUT_PNG.parent.mkdir(exist_ok=True)
-    fig.savefig(OUT_PNG, dpi=180, bbox_inches="tight")
-    print(f"écrit : {OUT_PNG}")
+    save_pres(fig, OUT_NAME)
 
 
 def main():

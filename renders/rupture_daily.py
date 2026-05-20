@@ -28,17 +28,21 @@ from datetime import date, datetime
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 
+from src.utils.timezone import utc_naive_to_local
+from renders._presstyle import apply_style, palette as P, figsize, save_pres
+
 
 DEFAULT_CLEAN_DIR = "data/clean"
-DEFAULT_OUT_PATH  = "renders/rupture_daily.png"
+DEFAULT_OUT_PATH  = "rupture_daily"     # sauvegardé en pres/fig/<>.pdf
 DEFAULT_GRID_MIN  = 10
 
-EMPTY_COLOR = "#c0392b"
-FULL_COLOR  = "#2980b9"
-MEAN_COLOR  = "#23373b"
+EMPTY_COLOR = P.deficit   # rouge : station vide
+FULL_COLOR  = P.depot     # bleu : station pleine
+MEAN_COLOR  = P.tdark
 
 
 def _seconds_of_day(ts: datetime) -> int:
+    # `ts` est attendu en heure locale Paris (conversion en amont).
     return ts.hour * 3600 + ts.minute * 60 + ts.second
 
 
@@ -66,7 +70,9 @@ def _scan_day(path: str, grid_secs: list[int]
         "SELECT station_number, available_bikes, timestamp "
         "FROM station_history ORDER BY station_number, timestamp"
     ):
-        t = datetime.fromisoformat(ts)
+        # Stocké en UTC naïf, on bascule en local Paris pour avoir un offset
+        # within-day cohérent avec la sémantique "journée locale".
+        t = utc_naive_to_local(datetime.fromisoformat(ts))
         by_station.setdefault(sn, []).append((_seconds_of_day(t), ab))
     con.close()
 
@@ -95,14 +101,10 @@ def _scan_day(path: str, grid_secs: list[int]
 
 
 def render(days: list[date], minutes_empty: list[int], minutes_full: list[int],
-           out_path: str) -> str:
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+           out_name: str) -> str:
+    apply_style()
+    fig, ax = plt.subplots(figsize=figsize("wide"))
 
-    fig, ax = plt.subplots(figsize=(13, 5.5))
-    fig.patch.set_facecolor("white")
-    ax.set_facecolor("#fafafa")
-
-    # Conversion minutes → heures pour lisibilité.
     h_empty = [m / 60 for m in minutes_empty]
     h_full  = [m / 60 for m in minutes_full]
     h_total = [e + f for e, f in zip(h_empty, h_full)]
@@ -113,37 +115,25 @@ def render(days: list[date], minutes_empty: list[int], minutes_full: list[int],
            edgecolor="white", linewidth=0.3,
            label="Stations pleines", zorder=3)
 
-    # Moyenne pour ligne de référence.
     n = len(days)
     mean_total = sum(h_total) / n
-    ax.axhline(mean_total, color=MEAN_COLOR, lw=1.5, ls="--",
+    ax.axhline(mean_total, color=MEAN_COLOR, lw=1.2, ls="--",
                label=f"Moyenne : {mean_total:.0f} h-station / jour",
                zorder=4)
 
-    ax.set_title(f"Temps de rupture quotidien sur le réseau Bicloo Nantes\n"
-                 f"{n} jours observés",
-                 fontsize=13, fontweight="bold", pad=10)
-    ax.set_xlabel("Date", fontsize=11)
-    ax.set_ylabel("Heures-station de rupture\nsur la journée", fontsize=11)
-    ax.grid(True, alpha=0.3, axis="y")
-    for sp in ("top", "right"):
-        ax.spines[sp].set_visible(False)
-    ax.legend(loc="upper left", fontsize=10, framealpha=0.9, ncol=3)
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Heures-station de rupture / jour")
+    ax.grid(True, alpha=0.6, axis="y")
+    ax.legend(loc="upper left", ncol=3, fontsize=8.5)
 
     ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=mdates.MO))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+    plt.setp(ax.get_xticklabels(), rotation=0, ha="center", fontsize=7.5)
     ax.set_ylim(bottom=0)
     ax.margins(x=0.005)
 
-    fig.text(0.5, -0.02,
-             "Une station immobilisée 1 h compte 1 « heure-station ».",
-             ha="center", va="top", fontsize=8.5, style="italic", color="#6c7a89")
-
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    return out_path
+    return str(save_pres(fig, out_name))
 
 
 def main() -> None:
