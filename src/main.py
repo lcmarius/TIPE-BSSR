@@ -2,6 +2,8 @@ import argparse
 import os
 from datetime import date, datetime
 
+from src.utils.timezone import local_to_utc_naive, now_utc_naive, utc_naive_to_local
+
 
 # Imports paresseux dans les `cmd_*` : on ne charge le solver / OSMnx que si on
 # lance effectivement une commande qui en a besoin.
@@ -122,13 +124,18 @@ def cmd_solve(args):
     from src.solver.solver import create_graph, is_graph_solvable
     from src.targeter.targeter import compute_adjusted_targets, InfeasibleInstance
 
+    # `--snapshot` est de l'heure locale Paris (intuition utilisateur). On
+    # convertit en UTC naïf pour matcher les timestamps en base (cf.
+    # src/utils/timezone.py). Le nom de fichier clean_*.sql reste indexé sur
+    # la date locale.
     when = datetime.fromisoformat(args.snapshot)
+    when_utc = local_to_utc_naive(when)
     db_path = os.path.join(args.clean_dir, f"clean_{when.date().isoformat()}.sql")
     if not os.path.isfile(db_path):
         raise SystemExit(f"Fichier introuvable : {db_path}")
 
     print(f"[1/5] Snapshot  · {db_path} @ {args.snapshot}")
-    stations, counts = _load_clean_snapshot(db_path, args.snapshot)
+    stations, counts = _load_clean_snapshot(db_path, when_utc.strftime("%Y-%m-%d %H:%M:%S"))
     print(f"      → {len(stations)} stations, {len(counts)} counts disponibles")
 
     depot = _synthetic_depot(stations)
@@ -247,8 +254,9 @@ def main():
     sp_solve.add_argument("clean_dir", nargs="?", default="data/clean",
                           help="Dossier des clean_*.sql (défaut: data/clean)")
     sp_solve.add_argument("--snapshot",
-                          default=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                          help="Instant cible 'YYYY-MM-DD HH:MM:SS' (défaut: instant courant)")
+                          default=utc_naive_to_local(now_utc_naive()).strftime("%Y-%m-%d %H:%M:%S"),
+                          help="Instant cible 'YYYY-MM-DD HH:MM:SS' (heure locale Paris ; "
+                               "défaut: instant courant)")
     sp_solve.add_argument("--city", default="nantes",
                           help=f"Préset (ex: 'nantes') ou nom OSMnx complet. "
                                f"Présets connus : {', '.join(CITY_PRESETS)}")

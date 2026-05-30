@@ -22,12 +22,12 @@
 import logging
 import signal
 import time
-from datetime import datetime
 
 from src.objects.bike import Bike
 from src.objects.station import Station
 from src.scrapper.api import API, get_stations, get_station_status, get_bikes
 from src.scrapper.database import Database
+from src.utils.timezone import now_utc_naive
 
 logging.basicConfig(
     level=logging.INFO,
@@ -198,7 +198,8 @@ class Scrapper:
         return snapshot, details, all_statuses
 
     def _execute_cycle(self):
-        now = datetime.now()
+        # Stockage en UTC naïf — cf. src/utils/timezone.py.
+        now = now_utc_naive()
 
         # Recalage périodique sur les counts officiels (cf. stratégie deux sources).
         if time.monotonic() - self.last_status_refresh >= self.status_interval:
@@ -261,6 +262,6 @@ class Scrapper:
         self.bike_statuses = current_statuses
 
     def _record_history(self, stations: list[int]):
-        records = [(sn, self.station_counts.get(sn, 0), datetime.now()) for sn in stations]
+        records = [(sn, self.station_counts.get(sn, 0), now_utc_naive()) for sn in stations]
         if records:
             self.db.insert_station_history_batch(records)

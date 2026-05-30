@@ -14,9 +14,22 @@ import sqlite3
 from datetime import date, datetime
 from enum import Enum
 
+from src.utils.timezone import local_to_utc_naive
+
 
 # Coupure froid / tempéré : équinoxe de printemps 2026.
 SPLIT_DATE: date = date(2026, 3, 20)
+
+# Jours fériés français présents dans la fenêtre de données (Bicloo Nantes
+# 2026). Leur demande usager suit un profil loisir — pointe domicile-travail
+# du matin absente (~5 % de la demande sur 7-9h contre ~20 % un jour ouvré) —
+# on les assimile donc au week-end pour l'estimation des lambda.
+HOLIDAYS: frozenset[date] = frozenset({
+    date(2026, 4, 6),   # Lundi de Pâques
+    date(2026, 5, 1),   # Fête du Travail
+    date(2026, 5, 8),   # Victoire 1945
+    date(2026, 5, 14),  # Ascension
+})
 
 
 class DayType(Enum):
@@ -32,8 +45,12 @@ class Season(Enum):
 
 
 def _day_type(day: date) -> DayType:
-    """Type de jour auquel appartient `day`. Convention Python : lundi=0, ..., dimanche=6."""
-    return DayType.WE if day.weekday() >= 5 else DayType.WD
+    """Type de jour auquel appartient `day`. Convention Python : lundi=0, ...,
+    dimanche=6. Les jours fériés sont assimilés au week-end (demande de type
+    loisir, cf. `HOLIDAYS`)."""
+    if day in HOLIDAYS or day.weekday() >= 5:
+        return DayType.WE
+    return DayType.WD
 
 
 def _season(day: date) -> Season:
@@ -46,6 +63,11 @@ def predict_lambdas(station_number: int, when: datetime,
     """Retourne (lambda_in, lambda_out) pour la station sur le créneau
     `[when.hour, when.hour + 1[` du jour `when.date()`.
 
+    `when` est interprété comme heure LOCALE Paris (cf. src/utils/timezone.py).
+    Les noms de fichiers `clean_*.sql` sont indexés sur la date locale, mais
+    les timestamps en base sont stockés en UTC : on convertit donc l'heure
+    locale cible en heure UTC pour le filtre SQL.
+
     On scanne tous les `clean_*.sql` du répertoire, on retient ceux qui
     tombent dans la même strate (type de jour, saison) que `when.date()`,
     on agrège les ARRIVAL et DEPARTURE USER pour la station et l'heure
@@ -55,7 +77,8 @@ def predict_lambdas(station_number: int, when: datetime,
     """
     target_day_type = _day_type(when.date())
     target_season   = _season(when.date())
-    target_hour     = when.hour
+    # Heure UTC correspondant à l'heure locale Paris demandée (gère DST).
+    target_hour = local_to_utc_naive(when.replace(minute=0, second=0, microsecond=0)).hour
 
     files = sorted(glob.glob(os.path.join(clean_dir, "clean_*.sql")))
     if not files:

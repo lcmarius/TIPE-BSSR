@@ -258,12 +258,12 @@ LOCAL_COLORS = {
 
 
 def _setup_axis(ax, x_max, y_min, y_max):
-    # Bande verte « optimum » (sous y=1)
+    # Bande verte « référence » (sous y=1, là où ρ=1 = l'optimum)
     ax.axhspan(y_min, 1.0, facecolor=P.surplus, edgecolor="none",
                alpha=0.10, zorder=0)
     ax.axhline(1.0, color=P.surplus_dark, lw=1.6, alpha=0.9, zorder=1)
     ax.text(x_max * 0.99, (y_min + 1.0) / 2,
-            "  optimale  ",
+            "  référence  ",
             ha='right', va='center', fontsize=7.5,
             color=P.surplus_dark, style='italic', fontweight='bold')
     ax.set_xlabel("Nombre de stations  n")

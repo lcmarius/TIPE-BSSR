@@ -1,12 +1,15 @@
 """Schéma conceptuel du temps de rupture (slide Motivation).
 
 Trace `available_bikes(t)` pour UNE vraie station-jour Bicloo Nantes
-qui présente un beau pattern : vide le matin, pleine l'après-midi.
+qui présente un cycle journalier cohérent : pleine la nuit, vide le
+midi, puis retour à un état proche de l'initial en soirée.
 Visualise concrètement les périodes pendant lesquelles la station est
 saturée (vide / pleine).
 
-Choix : Sainte Élisabeth (sn=17, capacité 14) le lundi 16 mars 2026.
-Pattern centre-ville classique. Cf. exploration des donnés clean.
+Choix : Gare de Pont-Rousseau (sn=102, capacité 24) le mardi 3 mars
+2026. Station de gare : cycle pendulaire très net, plateau vide franc
+de 9h à 13h, état de début et de fin de journée cohérents (24 → 23).
+Cf. exploration des donnés clean.
 
 Produit : pres/fig/rupture_concept.pdf
 """
@@ -21,9 +24,9 @@ from src.utils.timezone import local_day_bounds_utc, utc_naive_to_local
 from renders._presstyle import apply_style, palette as P, save_pres
 
 
-# Station-jour sélectionné pour son pattern lisible et son équilibre vide/plein.
-STATION_NUMBER = 17       # SAINTE ÉLISABETH
-DATE_ISO       = "2026-03-16"   # lundi
+# Station-jour sélectionné pour son cycle journalier lisible et cohérent.
+STATION_NUMBER = 102      # GARE DE PONT ROUSSEAU
+DATE_ISO       = "2026-03-03"   # mardi
 CLEAN_DIR      = "data/clean"
 
 
@@ -80,18 +83,24 @@ def main():
     ax.plot(times, values, color=P.tdark, lw=1.4, zorder=4)
 
     # Annotations directionnelles
-    ax.text(0.02, 0.10, "station vide",
-            transform=ax.transAxes, ha="left", va="bottom", fontsize=8,
+    # « station vide » : centrée au-dessus de la plage vide (vers midi).
+    empty_idx = [i for i, v in enumerate(values) if v <= 0]
+    if empty_idx:
+        x_empty = times[(empty_idx[0] + empty_idx[-1]) // 2]
+    else:
+        x_empty = times[len(times) // 2]
+    ax.text(x_empty, band_h * 1.25, "station vide",
+            ha="center", va="bottom", fontsize=8,
             color=COL_EMPTY, fontweight="bold", zorder=5)
     # « station pleine » : juste AU-DESSUS de la ligne y=capacité,
-    # côté droit pour éviter la collision avec le label « capacité = ».
-    ax.text(times[-1], cap + band_h * 0.35, "station pleine",
-            ha="right", va="bottom", fontsize=8,
+    # côté gauche au-dessus de la plage pleine de la nuit.
+    ax.text(times[0], cap + band_h * 0.35, "station pleine",
+            ha="left", va="bottom", fontsize=8,
             color=COL_FULL, fontweight="bold", zorder=5)
-    ax.text(times[0], cap + band_h * 0.35, f"capacité = {cap}",
-            ha="left", va="bottom", fontsize=7, color=COL_FULL)
+    ax.text(times[-1], cap + band_h * 0.35, f"capacité = {cap}",
+            ha="right", va="bottom", fontsize=7, color=COL_FULL)
 
-    ax.set_title("Station Sainte Élisabeth (centre-ville)\nlundi 16 mars 2026",
+    ax.set_title("Station Gare de Pont-Rousseau (Rezé)\nmardi 3 mars 2026",
                  fontsize=9, fontweight="bold", pad=5, loc="center")
     ax.set_xlabel("Heure de la journée")
     ax.set_ylabel("Vélos disponibles")

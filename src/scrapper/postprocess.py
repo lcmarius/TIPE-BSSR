@@ -20,7 +20,9 @@ import os
 import shutil
 import sqlite3
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
+
+from src.utils.timezone import local_day_bounds_utc
 
 
 @dataclass
@@ -36,9 +38,10 @@ class CleaningReport:
 
 
 def _day_bounds(jour: date) -> tuple[str, str]:
-    start = f"{jour.isoformat()} 00:00:00"
-    end = f"{(jour + timedelta(days=1)).isoformat()} 00:00:00"
-    return start, end
+    # `jour` est une date locale Paris. On découpe en UTC pour matcher les
+    # timestamps stockés en base (UTC naïf). cf. src/utils/timezone.py.
+    start_utc, end_utc = local_day_bounds_utc(jour)
+    return start_utc.strftime("%Y-%m-%d %H:%M:%S"), end_utc.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _truncate_to_day(conn: sqlite3.Connection, jour: date):

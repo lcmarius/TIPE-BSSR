@@ -319,6 +319,93 @@ def render_spring_only(results: list[dict], out_name: str) -> str:
     return str(save_pres(fig, out_name))
 
 
+# Jours fériés sans intervention de la flotte Bicloo (lun./ven.). La flotte
+# de redistribution n'a pas tourné (0 mouvement `source = 'TRUCK'`) ET la
+# demande usager y est de profil loisir — pas de pointe domicile-travail du
+# matin (cf. `src/targeter/lambda_predict.HOLIDAYS`). Sur ces jours
+# l'évaluation contrefactuelle est exacte : aucune flotte Bicloo à écarter.
+HOLIDAY_LABELS: dict[str, str] = {
+    "2026-04-06": "Lundi de Pâques\n06/04",
+    "2026-05-01": "Fête du Travail\n01/05",
+    "2026-05-08": "Victoire 1945\n08/05",
+}
+
+
+def render_no_intervention(results: list[dict], out_name: str, *,
+                            dates: list[str] | None = None) -> str:
+    """Slide III.3 : résultat unique, agrégé sur les jours fériés.
+
+    Deux barres seulement — temps de rupture moyen par jour sans
+    redistribution vs avec notre camion optimisé — moyennées sur les jours
+    fériés où la flotte Bicloo réelle n'a pas tourné (évaluation
+    contrefactuelle exacte, demande de profil loisir). Barres d'erreur =
+    SE inter-jours. Un seul chiffre mis en avant : le gain Δ.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from renders._presstyle import apply_style, palette as P, save_pres
+
+    apply_style()
+
+    dates = dates or list(HOLIDAY_LABELS)
+    by_date = {r["date"]: r for r in results if r["ok"]}
+    rs = [by_date[d] for d in dates if d in by_date]
+    if not rs:
+        raise SystemExit("Aucun jour férié exploitable dans les résultats.")
+
+    # Conversion en heures-station : plus parlant que les minutes.
+    base = np.array([r["baseline"].total_rupture_min  for r in rs]) / 60.0
+    opt  = np.array([r["optimized"].total_rupture_min for r in rs]) / 60.0
+    sqrtN = max(1.0, np.sqrt(len(rs)))
+    base_m, opt_m = base.mean(), opt.mean()
+    base_se = base.std(ddof=1) / sqrtN if len(rs) > 1 else 0.0
+    opt_se  = opt.std(ddof=1)  / sqrtN if len(rs) > 1 else 0.0
+    gain = (base_m - opt_m) / base_m * 100 if base_m else 0.0
+
+    fig, ax = plt.subplots(figsize=(4.4, 3.5))
+    ax.grid(True, axis="y", alpha=0.5)
+    ax.set_axisbelow(True)
+
+    xs = [0.0, 1.0]
+    bar_w = 0.56
+    b1 = ax.bar(xs[0], base_m, bar_w, yerr=base_se, capsize=5,
+                color=P.textmuted, edgecolor=P.tdark, linewidth=0.8,
+                error_kw=dict(ecolor=P.tdark, lw=1.1))
+    b2 = ax.bar(xs[1], opt_m, bar_w, yerr=opt_se, capsize=5,
+                color=P.surplus, edgecolor=P.tdark, linewidth=0.8,
+                error_kw=dict(ecolor=P.tdark, lw=1.1))
+
+    # Valeur en heures, au cœur de chaque barre.
+    for rect, val in ((b1[0], base_m), (b2[0], opt_m)):
+        ax.text(rect.get_x() + rect.get_width() / 2, val * 0.5,
+                f"{val:.0f} h", ha="center", va="center", fontsize=13,
+                color="white", fontweight="bold")
+
+    # Le chiffre unique : gain Δ, en grand, au-dessus.
+    y_top = max(base_m + base_se, opt_m + opt_se)
+    ax.text(0.5, y_top * 1.16, f"−{gain:.0f} %",
+            ha="center", va="bottom", fontsize=30, fontweight="bold",
+            color=P.surplus)
+
+    ax.set_xticks(xs)
+    ax.set_xticklabels(["Sans\nredistribution", "Avec notre\ncamion optimisé"],
+                       fontsize=10.5)
+    ax.set_ylabel("Heures-station en rupture\n(moyenne par jour)", fontsize=9.5)
+    ax.set_ylim(0, y_top * 1.52)
+    ax.set_xlim(-0.7, 1.7)
+    ax.set_title("Rupture du réseau les jours fériés",
+                 fontsize=11.5, fontweight="bold", pad=8)
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+
+    print(f"  agrégé sur {len(rs)} jours fériés : "
+          f"baseline {base_m:.0f} ± {base_se:.0f} h  ·  "
+          f"optimisé {opt_m:.0f} ± {opt_se:.0f} h  ·  gain −{gain:.1f} %")
+
+    fig.tight_layout()
+    return str(save_pres(fig, out_name))
+
+
 def render_stratified(results: list[dict], out_name: str) -> str:
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
