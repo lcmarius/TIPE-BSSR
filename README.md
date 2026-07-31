@@ -46,13 +46,3 @@ python -m src.main postprocess <db> --date YYYY-MM-DD                   # extrac
 python -m src.main postprocess <db> --date YYYY-MM-DD --output-dir <d>  # cible alternative
 python -m src.main postprocess <db> --date YYYY-MM-DD --no-keep-truck   # ne garder que USER
 ```
-
-Pipeline en quatre étapes : tronquer au jour, filtrer par source, interpoler les valeurs aberrantes, supprimer les mouvements orphelins.
-
-## TODO
-
-- Ajouter jours feriés comme weekend
-- Critiquer les résultats et la démarche : impact des approximations successives (indépendance Poisson, troncature de Skellam, vitesses OSM réduites, heuristiques d'approximation au lieu d'une résolution exacte) sur la qualité de la tournée.
-- Ajouter ref bibliographique :  Bräysy, O. & Gendreau, M. (2005). Vehicle Routing Problem with Time Windows, Part I: Route Construction and Local Search Algorithms. Transportation Science 39(1), 104-118.
-- Ajouter ref bibliographique : Lourenço, H. R., Martin, O. C. & Stützle, T. (2003). Iterated Local Search. In F. Glover & G. Kochenberger (eds.), Handbook of Metaheuristics, vol. 57, pp. 320–353. Kluwer Academic.
-- Ajouter ref bibliographique : Federgruen, A. & Groenevelt, H. (1986). The greedy procedure for resource allocation problems: necessary and sufficient conditions for optimality. Operations Research, 34(6), 909–918. (justifie l'optimalité du glouton dans `targeter/targeter.py`)
